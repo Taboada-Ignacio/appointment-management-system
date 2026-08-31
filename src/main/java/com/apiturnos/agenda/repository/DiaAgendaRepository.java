@@ -19,6 +19,12 @@ public interface DiaAgendaRepository extends JpaRepository<DiaAgenda, Long> {
     @Query("SELECT d FROM DiaAgenda d JOIN FETCH d.mesAgenda m JOIN FETCH m.agendaAnual a JOIN FETCH a.profesional p WHERE d.id = :id")
     Optional<DiaAgenda> findByIdWithMesAndProfesional(@Param("id") Long id);
 
+    @Query("SELECT d FROM DiaAgenda d JOIN FETCH d.mesAgenda m JOIN FETCH m.agendaAnual a " +
+           "JOIN FETCH a.profesional p WHERE d.id = :id AND p.id = :profesionalId")
+    Optional<DiaAgenda> findByIdAndProfesionalId(
+            @Param("id") Long id,
+            @Param("profesionalId") Long profesionalId);
+
     @Query("SELECT d FROM DiaAgenda d JOIN d.mesAgenda m JOIN m.agendaAnual a " +
            "WHERE a.profesional.id = :profesionalId AND d.fecha BETWEEN :desde AND :hasta")
     List<DiaAgenda> findByProfesionalIdAndFechaBetween(

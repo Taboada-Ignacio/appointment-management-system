@@ -8,16 +8,20 @@ import com.apiturnos.agenda.model.BrechaHoraria;
 import com.apiturnos.agenda.model.DiaAgenda;
 import com.apiturnos.agenda.repository.BrechaHorariaRepository;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
+import com.apiturnos.agenda.dto.DiaSeleccionableResponseDto;
 import com.apiturnos.agenda.service.ConfigurarDiaAgenda;
+import com.apiturnos.agenda.service.ObtenerDiasSeleccionables;
 import com.apiturnos.estado.model.AmbitoEstado;
 import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.shared.exception.ClienteNoPerteneceProfesionalException;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,15 +34,27 @@ public class DiaAgendaController {
     private final BrechaHorariaRepository brechaHorariaRepository;
     private final ConfigurarDiaAgenda configurarDiaAgenda;
     private final GestorCambioEstado gestorCambioEstado;
+    private final ObtenerDiasSeleccionables obtenerDiasSeleccionables;
 
     public DiaAgendaController(DiaAgendaRepository diaAgendaRepository,
                                BrechaHorariaRepository brechaHorariaRepository,
                                ConfigurarDiaAgenda configurarDiaAgenda,
-                               GestorCambioEstado gestorCambioEstado) {
+                               GestorCambioEstado gestorCambioEstado,
+                               ObtenerDiasSeleccionables obtenerDiasSeleccionables) {
         this.diaAgendaRepository = diaAgendaRepository;
         this.brechaHorariaRepository = brechaHorariaRepository;
         this.configurarDiaAgenda = configurarDiaAgenda;
         this.gestorCambioEstado = gestorCambioEstado;
+        this.obtenerDiasSeleccionables = obtenerDiasSeleccionables;
+    }
+
+    @GetMapping("/seleccionables")
+    public ResponseEntity<List<DiaSeleccionableResponseDto>> listarSeleccionables(
+            @PathVariable Long profesionalId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        List<DiaSeleccionableResponseDto> dias = obtenerDiasSeleccionables.ejecutar(profesionalId, desde, hasta);
+        return ResponseEntity.ok(dias);
     }
 
     @GetMapping("/{diaAgendaId}")

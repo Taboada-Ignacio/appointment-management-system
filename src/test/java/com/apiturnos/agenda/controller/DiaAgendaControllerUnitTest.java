@@ -54,6 +54,8 @@ class DiaAgendaControllerUnitTest {
     private ConfigurarDiaAgenda configurarDiaAgenda;
     @Mock
     private GestorCambioEstado gestorCambioEstado;
+    @Mock
+    private com.apiturnos.agenda.service.ObtenerDiasSeleccionables obtenerDiasSeleccionables;
 
     @InjectMocks
     private DiaAgendaController diaAgendaController;
