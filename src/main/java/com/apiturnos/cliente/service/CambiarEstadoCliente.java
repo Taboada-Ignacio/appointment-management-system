@@ -6,35 +6,55 @@ import com.apiturnos.cliente.model.Cliente;
 import com.apiturnos.cliente.repository.ClienteRepository;
 import com.apiturnos.estado.model.AmbitoEstado;
 import com.apiturnos.estado.service.GestorCambioEstado;
-import com.apiturnos.shared.exception.ClienteNoDadoDeBajaException;
 import com.apiturnos.shared.exception.ClienteNoEncontradoException;
 import com.apiturnos.shared.exception.ClienteNoPerteneceProfesionalException;
+import com.apiturnos.shared.exception.EstadoClienteInvalidoException;
 import com.apiturnos.shared.exception.NegocioException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Set;
+
 @Service
-public class ReactivarCliente {
+public class CambiarEstadoCliente {
+
+    private static final Set<String> ESTADOS_CLIENTE_VALIDOS = Set.of(
+            "HABILITADO",
+            "PENDIENTE_DE_VERIFICACION",
+            "REQUIERE_APROBACION",
+            "INHABILITADO",
+            "DADO_DE_BAJA"
+    );
 
     private final ClienteRepository clienteRepository;
     private final GestorCambioEstado gestorCambioEstado;
     private final RegistradorAuditoria registradorAuditoria;
 
-    public ReactivarCliente(ClienteRepository clienteRepository,
-                            GestorCambioEstado gestorCambioEstado,
-                            RegistradorAuditoria registradorAuditoria) {
+    public CambiarEstadoCliente(ClienteRepository clienteRepository,
+                                GestorCambioEstado gestorCambioEstado,
+                                RegistradorAuditoria registradorAuditoria) {
         this.clienteRepository = clienteRepository;
         this.gestorCambioEstado = gestorCambioEstado;
         this.registradorAuditoria = registradorAuditoria;
     }
 
     @Transactional
-    public Cliente ejecutar(Long profesionalId, Long clienteId, String usuario) {
+    public Cliente ejecutar(Long profesionalId, Long clienteId, String nuevoEstado,
+                            String observacion, String usuario) {
         if (profesionalId == null) {
             throw new NegocioException("El ID del profesional es obligatorio");
         }
         if (clienteId == null) {
             throw new NegocioException("El ID del cliente es obligatorio");
+        }
+        if (nuevoEstado == null || nuevoEstado.isBlank()) {
+            throw new NegocioException("El nuevo estado es obligatorio");
+        }
+
+        String estadoDestino = nuevoEstado.trim().toUpperCase();
+        if (!ESTADOS_CLIENTE_VALIDOS.contains(estadoDestino)) {
+            throw new EstadoClienteInvalidoException(
+                    "El estado '" + estadoDestino + "' no es un estado válido para el ámbito CLIENTE");
         }
 
         Cliente cliente = clienteRepository.findById(clienteId)
@@ -44,32 +64,17 @@ public class ReactivarCliente {
             throw new ClienteNoPerteneceProfesionalException(clienteId, profesionalId);
         }
 
-        String estadoActual = gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.CLIENTE, clienteId);
-        if (!"DADO_DE_BAJA".equals(estadoActual)) {
-            throw new ClienteNoDadoDeBajaException(clienteId, estadoActual);
-        }
-
-        // Recuperar el estado inmediatamente anterior a DADO_DE_BAJA desde el historial
-        String estadoAnterior = gestorCambioEstado.obtenerEstadoAnteriorADadoDeBaja(AmbitoEstado.CLIENTE, clienteId);
+        String estadoAnterior = gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.CLIENTE, clienteId);
 
         gestorCambioEstado.registrarCambio(
-                AmbitoEstado.CLIENTE, clienteId, estadoAnterior, usuario,
-                "Cliente reactivado al estado anterior: " + estadoAnterior, null);
+                AmbitoEstado.CLIENTE, clienteId, estadoDestino, usuario, observacion, null);
 
         registradorAuditoria.registrar("CLIENTE", "Cliente", clienteId,
                 OperacionAuditoria.STATE_CHANGE, usuario, profesionalId,
-                "CLIENTE_REACTIVADO: DADO_DE_BAJA → " + estadoAnterior);
+                "ESTADO_CLIENTE_MODIFICADO: " + estadoAnterior + " → " + estadoDestino +
+                (observacion != null ? " (" + observacion + ")" : ""));
 
         return cliente;
     }
-
-    @Transactional
-    public Cliente ejecutar(Long clienteId, String usuario) {
-        if (clienteId == null) {
-            throw new NegocioException("El ID del cliente es obligatorio");
-        }
-        Cliente cliente = clienteRepository.findById(clienteId)
-                .orElseThrow(() -> new ClienteNoEncontradoException(clienteId));
-        return ejecutar(cliente.getProfesional().getId(), clienteId, usuario);
-    }
 }
+

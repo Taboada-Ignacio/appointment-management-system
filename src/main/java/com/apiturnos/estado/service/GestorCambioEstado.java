@@ -25,9 +25,10 @@ public class GestorCambioEstado {
 
     private static final Map<AmbitoEstado, Map<String, Set<String>>> TRANSICIONES = Map.of(
         AmbitoEstado.CLIENTE, Map.of(
-            "PENDIENTE_DE_VERIFICACION", Set.of("HABILITADO"),
-            "HABILITADO", Set.of("INHABILITADO", "DADO_DE_BAJA"),
-            "INHABILITADO", Set.of("HABILITADO", "DADO_DE_BAJA"),
+            "PENDIENTE_DE_VERIFICACION", Set.of("HABILITADO", "DADO_DE_BAJA"),
+            "HABILITADO", Set.of("REQUIERE_APROBACION", "INHABILITADO", "DADO_DE_BAJA"),
+            "REQUIERE_APROBACION", Set.of("HABILITADO", "INHABILITADO", "DADO_DE_BAJA"),
+            "INHABILITADO", Set.of("HABILITADO", "REQUIERE_APROBACION", "DADO_DE_BAJA"),
             "DADO_DE_BAJA", Set.of("HABILITADO", "PENDIENTE_DE_VERIFICACION", "INHABILITADO", "REQUIERE_APROBACION")
         ),
         AmbitoEstado.TURNO, Map.of(
@@ -64,6 +65,40 @@ public class GestorCambioEstado {
 
     public List<CambioEstado> obtenerHistorial(AmbitoEstado ambito, Long entidadId) {
         return cambioEstadoRepository.findByAmbitoAndEntidadIdOrderByFechaHoraInicioAsc(ambito, entidadId);
+    }
+
+    public String obtenerEstadoAnteriorADadoDeBaja(AmbitoEstado ambito, Long entidadId) {
+        List<CambioEstado> historial = obtenerHistorial(ambito, entidadId);
+        String estadoAnterior = "HABILITADO"; // fallback por defecto
+        for (int i = historial.size() - 1; i >= 0; i--) {
+            String nombre = historial.get(i).getEstado().getNombre();
+            if (!"DADO_DE_BAJA".equals(nombre)) {
+                estadoAnterior = nombre;
+                break;
+            }
+        }
+        return estadoAnterior;
+    }
+
+    public Map<Long, String> obtenerEstadosActualesPorEntidades(AmbitoEstado ambito, List<Long> entidadIds) {
+        if (entidadIds == null || entidadIds.isEmpty()) {
+            return Map.of();
+        }
+        List<CambioEstado> activos = cambioEstadoRepository.findCurrentByAmbitoAndEntidadIds(ambito, entidadIds);
+        Map<Long, String> resultado = new java.util.HashMap<>();
+        for (CambioEstado ce : activos) {
+            resultado.put(ce.getEntidadId(), ce.getEstado().getNombre());
+        }
+        // Para entidades sin fechaHoraFin null (si hubiera alguna), fallback individual
+        for (Long id : entidadIds) {
+            if (!resultado.containsKey(id)) {
+                String actual = obtenerNombreEstadoActual(ambito, id);
+                if (actual != null) {
+                    resultado.put(id, actual);
+                }
+            }
+        }
+        return resultado;
     }
 
     public CambioEstado registrarCambioInicial(AmbitoEstado ambito, Long entidadId, String nombreEstado,

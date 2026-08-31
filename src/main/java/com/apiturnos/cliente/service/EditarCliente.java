@@ -5,41 +5,35 @@ import com.apiturnos.auditoria.service.RegistradorAuditoria;
 import com.apiturnos.cliente.model.Cliente;
 import com.apiturnos.cliente.model.TipoDocumento;
 import com.apiturnos.cliente.repository.ClienteRepository;
-import com.apiturnos.estado.model.AmbitoEstado;
-import com.apiturnos.estado.service.GestorCambioEstado;
-import com.apiturnos.profesional.model.Profesional;
-import com.apiturnos.profesional.repository.ProfesionalRepository;
 import com.apiturnos.shared.exception.ClienteDuplicadoException;
-import com.apiturnos.shared.exception.EntidadNoEncontradaException;
+import com.apiturnos.shared.exception.ClienteNoEncontradoException;
+import com.apiturnos.shared.exception.ClienteNoPerteneceProfesionalException;
 import com.apiturnos.shared.exception.NegocioException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class RegistrarCliente {
+public class EditarCliente {
 
     private final ClienteRepository clienteRepository;
-    private final ProfesionalRepository profesionalRepository;
-    private final GestorCambioEstado gestorCambioEstado;
     private final RegistradorAuditoria registradorAuditoria;
 
-    public RegistrarCliente(ClienteRepository clienteRepository,
-                            ProfesionalRepository profesionalRepository,
-                            GestorCambioEstado gestorCambioEstado,
-                            RegistradorAuditoria registradorAuditoria) {
+    public EditarCliente(ClienteRepository clienteRepository,
+                         RegistradorAuditoria registradorAuditoria) {
         this.clienteRepository = clienteRepository;
-        this.profesionalRepository = profesionalRepository;
-        this.gestorCambioEstado = gestorCambioEstado;
         this.registradorAuditoria = registradorAuditoria;
     }
 
     @Transactional
-    public Cliente ejecutar(Long profesionalId, String nombre, String apellido,
+    public Cliente ejecutar(Long profesionalId, Long clienteId, String nombre, String apellido,
                             TipoDocumento tipoDocumento, String numeroDocumento,
-                            String email, String telefono, boolean esAutoregistro,
+                            String email, String telefono, Boolean notificacionesHabilitadas,
                             String usuario) {
         if (profesionalId == null) {
             throw new NegocioException("El ID del profesional es obligatorio");
+        }
+        if (clienteId == null) {
+            throw new NegocioException("El ID del cliente es obligatorio");
         }
         if (nombre == null || nombre.isBlank()) {
             throw new NegocioException("El nombre del cliente es obligatorio");
@@ -60,34 +54,38 @@ public class RegistrarCliente {
             throw new NegocioException("El teléfono del cliente es obligatorio");
         }
 
-        Profesional profesional = profesionalRepository.findById(profesionalId)
-                .orElseThrow(() -> new EntidadNoEncontradaException("Profesional", profesionalId));
+        Cliente cliente = clienteRepository.findById(clienteId)
+                .orElseThrow(() -> new ClienteNoEncontradoException(profesionalId, clienteId));
+
+        if (!cliente.getProfesional().getId().equals(profesionalId)) {
+            throw new ClienteNoPerteneceProfesionalException(clienteId, profesionalId);
+        }
 
         String dniNormalizado = numeroDocumento.trim();
 
-        if (clienteRepository.existsByProfesionalIdAndNumeroDocumento(profesionalId, dniNormalizado)) {
+        // Si el DNI cambió o es diferente, validar que no colisione con otro cliente del mismo profesional
+        if (!dniNormalizado.equalsIgnoreCase(cliente.getNumeroDocumento()) &&
+                clienteRepository.existsByProfesionalIdAndNumeroDocumentoAndIdNot(profesionalId, dniNormalizado, clienteId)) {
             throw new ClienteDuplicadoException(profesionalId, dniNormalizado);
         }
 
-        Cliente cliente = new Cliente();
-        cliente.setProfesional(profesional);
         cliente.setNombre(nombre.trim());
         cliente.setApellido(apellido.trim());
         cliente.setTipoDocumento(tipoDocumento);
         cliente.setNumeroDocumento(dniNormalizado);
         cliente.setEmail(email.trim().toLowerCase());
         cliente.setTelefono(telefono.trim());
-        cliente.setNotificacionesHabilitadas(true);
+        if (notificacionesHabilitadas != null) {
+            cliente.setNotificacionesHabilitadas(notificacionesHabilitadas);
+        }
+
         cliente = clienteRepository.save(cliente);
 
-        String estadoInicial = esAutoregistro ? "PENDIENTE_DE_VERIFICACION" : "HABILITADO";
-        gestorCambioEstado.registrarCambioInicial(
-                AmbitoEstado.CLIENTE, cliente.getId(), estadoInicial, usuario, "Alta de cliente");
-
-        registradorAuditoria.registrar("CLIENTE", "Cliente", cliente.getId(),
-                OperacionAuditoria.CREATE, usuario, profesionalId,
-                "CLIENTE_REGISTRADO: Estado inicial " + estadoInicial);
+        registradorAuditoria.registrar("CLIENTE", "Cliente", clienteId,
+                OperacionAuditoria.UPDATE, usuario, profesionalId,
+                "CLIENTE_EDITADO: Datos personales actualizados");
 
         return cliente;
     }
 }
+
