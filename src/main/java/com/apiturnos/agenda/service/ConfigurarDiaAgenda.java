@@ -6,6 +6,7 @@ import com.apiturnos.agenda.repository.BrechaHorariaRepository;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.auditoria.model.OperacionAuditoria;
 import com.apiturnos.auditoria.service.RegistradorAuditoria;
+import com.apiturnos.shared.exception.ClienteNoPerteneceProfesionalException;
 import com.apiturnos.shared.exception.DiaAgendaNoValidoException;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import org.springframework.stereotype.Service;
@@ -44,15 +45,21 @@ public class ConfigurarDiaAgenda {
     }
 
     @Transactional
-    public List<BrechaHoraria> ejecutar(Long diaAgendaId, List<BrechaInput> brechas, String usuario) {
+    public List<BrechaHoraria> ejecutar(Long profesionalId, Long diaAgendaId, List<BrechaInput> brechas, String usuario) {
         DiaAgenda diaAgenda = diaAgendaRepository.findById(diaAgendaId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("DiaAgenda", diaAgendaId));
 
+        if (profesionalId != null && !diaAgenda.getMesAgenda().getAgendaAnual().getProfesional().getId().equals(profesionalId)) {
+            throw new ClienteNoPerteneceProfesionalException(diaAgendaId, profesionalId);
+        }
+
         // Validate each brecha
-        for (BrechaInput b : brechas) {
-            if (!b.getHoraInicio().isBefore(b.getHoraFin())) {
-                throw new DiaAgendaNoValidoException(
-                        "La hora de inicio (" + b.getHoraInicio() + ") debe ser anterior a la hora de fin (" + b.getHoraFin() + ")");
+        if (brechas != null) {
+            for (BrechaInput b : brechas) {
+                if (!b.getHoraInicio().isBefore(b.getHoraFin())) {
+                    throw new DiaAgendaNoValidoException(
+                            "La hora de inicio (" + b.getHoraInicio() + ") debe ser anterior a la hora de fin (" + b.getHoraFin() + ")");
+                }
             }
         }
 
@@ -62,19 +69,26 @@ public class ConfigurarDiaAgenda {
 
         // Create new brechas
         List<BrechaHoraria> nuevas = new ArrayList<>();
-        for (BrechaInput b : brechas) {
-            BrechaHoraria brecha = new BrechaHoraria();
-            brecha.setDiaAgenda(diaAgenda);
-            brecha.setHoraInicioAtencion(b.getHoraInicio());
-            brecha.setHoraFinAtencion(b.getHoraFin());
-            nuevas.add(brechaHorariaRepository.save(brecha));
+        if (brechas != null) {
+            for (BrechaInput b : brechas) {
+                BrechaHoraria brecha = new BrechaHoraria();
+                brecha.setDiaAgenda(diaAgenda);
+                brecha.setHoraInicioAtencion(b.getHoraInicio());
+                brecha.setHoraFinAtencion(b.getHoraFin());
+                nuevas.add(brechaHorariaRepository.save(brecha));
+            }
         }
 
-        Long profesionalId = diaAgenda.getMesAgenda().getAgendaAnual().getProfesional().getId();
+        Long idProf = diaAgenda.getMesAgenda().getAgendaAnual().getProfesional().getId();
         registradorAuditoria.registrar("AGENDA", "DiaAgenda", diaAgendaId,
-                OperacionAuditoria.UPDATE, usuario, profesionalId,
+                OperacionAuditoria.UPDATE, usuario, idProf,
                 "Día configurado con " + nuevas.size() + " brechas horarias");
 
         return nuevas;
+    }
+
+    @Transactional
+    public List<BrechaHoraria> ejecutar(Long diaAgendaId, List<BrechaInput> brechas, String usuario) {
+        return ejecutar(null, diaAgendaId, brechas, usuario);
     }
 }

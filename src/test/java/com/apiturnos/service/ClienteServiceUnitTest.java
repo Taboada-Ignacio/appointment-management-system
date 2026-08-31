@@ -1,6 +1,5 @@
 package com.apiturnos.service;
 
-import com.apiturnos.auditoria.model.OperacionAuditoria;
 import com.apiturnos.auditoria.service.RegistradorAuditoria;
 import com.apiturnos.cliente.model.Cliente;
 import com.apiturnos.cliente.model.TipoDocumento;
@@ -18,17 +17,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -120,6 +116,7 @@ class ClienteServiceUnitTest {
         when(profesionalRepository.existsById(1L)).thenReturn(true);
         when(clienteRepository.findById(10L)).thenReturn(Optional.of(cliente));
         when(clienteRepository.findById(20L)).thenReturn(Optional.of(clienteAjeno));
+        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.CLIENTE, 10L)).thenReturn("PENDIENTE_DE_VERIFICACION");
 
         assertThatThrownBy(() -> verificarMasivo.ejecutar(1L, List.of(10L, 20L), "admin"))
                 .isInstanceOf(ClienteNoPerteneceProfesionalException.class);
@@ -127,4 +124,3 @@ class ClienteServiceUnitTest {
         verify(gestorCambioEstado, never()).registrarCambio(any(), any(), any(), any(), any(), any());
     }
 }
-

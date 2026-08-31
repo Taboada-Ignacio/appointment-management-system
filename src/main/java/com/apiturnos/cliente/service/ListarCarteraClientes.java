@@ -47,9 +47,9 @@ public class ListarCarteraClientes {
             throw new EntidadNoEncontradaException("Profesional", profesionalId);
         }
 
-        String nombreFiltro = (nombre != null && !nombre.isBlank()) ? nombre.trim() : null;
-        String apellidoFiltro = (apellido != null && !apellido.isBlank()) ? apellido.trim() : null;
-        String dniFiltro = (dni != null && !dni.isBlank()) ? dni.trim() : null;
+        String nombreFiltro = (nombre != null && !nombre.isBlank()) ? "%" + nombre.trim().toLowerCase() + "%" : null;
+        String apellidoFiltro = (apellido != null && !apellido.isBlank()) ? "%" + apellido.trim().toLowerCase() + "%" : null;
+        String dniFiltro = (dni != null && !dni.isBlank()) ? "%" + dni.trim() + "%" : null;
         String estadoFiltro = (estado != null && !estado.isBlank()) ? estado.trim() : null;
 
         Page<Cliente> paginaClientes = clienteRepository.buscarCartera(
@@ -70,4 +70,3 @@ public class ListarCarteraClientes {
         return new PageImpl<>(dtos, pageable, paginaClientes.getTotalElements());
     }
 }
-

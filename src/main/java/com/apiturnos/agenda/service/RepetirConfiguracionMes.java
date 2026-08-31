@@ -6,6 +6,7 @@ import com.apiturnos.agenda.model.MesAgenda;
 import com.apiturnos.agenda.repository.BrechaHorariaRepository;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.agenda.repository.MesAgendaRepository;
+import com.apiturnos.shared.exception.ClienteNoPerteneceProfesionalException;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import com.apiturnos.shared.exception.NegocioException;
 import org.springframework.stereotype.Service;
@@ -34,9 +35,13 @@ public class RepetirConfiguracionMes {
     }
 
     @Transactional
-    public MesAgenda ejecutar(Long mesOrigenId) {
+    public MesAgenda ejecutar(Long profesionalId, Long mesOrigenId) {
         MesAgenda mesOrigen = mesAgendaRepository.findById(mesOrigenId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("MesAgenda", mesOrigenId));
+
+        if (profesionalId != null && !mesOrigen.getAgendaAnual().getProfesional().getId().equals(profesionalId)) {
+            throw new ClienteNoPerteneceProfesionalException(mesOrigenId, profesionalId);
+        }
 
         if (!Boolean.TRUE.equals(mesOrigen.getRepetirConfiguracion())) {
             throw new NegocioException("El mes no tiene activada la repetición de configuración");
@@ -97,5 +102,10 @@ public class RepetirConfiguracionMes {
         }
 
         return mesDestino;
+    }
+
+    @Transactional
+    public MesAgenda ejecutar(Long mesOrigenId) {
+        return ejecutar(null, mesOrigenId);
     }
 }
