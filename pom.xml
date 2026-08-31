@@ -10,7 +10,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
-    <groupId>com.turnos</groupId>
+    <groupId>com.apiturnos</groupId>
     <artifactId>api-turnos</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>api-turnos</name>
