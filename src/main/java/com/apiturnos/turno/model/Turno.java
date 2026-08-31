@@ -1,6 +1,7 @@
 package com.apiturnos.turno.model;
 
 import com.apiturnos.agenda.model.DiaAgenda;
+import com.apiturnos.atencion.model.TipoAtencion;
 import com.apiturnos.cliente.model.Cliente;
 import com.apiturnos.shared.model.AuditableEntity;
 import jakarta.persistence.Column;
@@ -33,6 +34,10 @@ public class Turno extends AuditableEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "cliente_id", nullable = false)
     private Cliente cliente;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tipo_atencion_id")
+    private com.apiturnos.atencion.model.TipoAtencion tipoAtencion;
 
     @Column(name = "inicio_estimado", nullable = false)
     private Instant inicioEstimado;
@@ -78,6 +83,14 @@ public class Turno extends AuditableEntity {
 
     public void setCliente(Cliente cliente) {
         this.cliente = cliente;
+    }
+
+    public TipoAtencion getTipoAtencion() {
+        return tipoAtencion;
+    }
+
+    public void setTipoAtencion(TipoAtencion tipoAtencion) {
+        this.tipoAtencion = tipoAtencion;
     }
 
     public Instant getInicioEstimado() {

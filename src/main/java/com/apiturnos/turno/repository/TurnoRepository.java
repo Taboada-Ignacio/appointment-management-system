@@ -49,5 +49,17 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
             @Param("fecha") LocalDate fecha,
             @Param("inicio") Instant inicio,
             @Param("fin") Instant fin);
+
+    @Query("""
+            SELECT t FROM Turno t
+            WHERE t.tipoAtencion.id = :tipoAtencionId
+              AND t.inicioEstimado < :fin
+              AND t.finEstimado > :inicio
+            ORDER BY t.inicioEstimado ASC, t.id ASC
+            """)
+    List<Turno> findTurnosSolapadosPorTipoAtencion(
+            @Param("tipoAtencionId") Long tipoAtencionId,
+            @Param("inicio") Instant inicio,
+            @Param("fin") Instant fin);
 }
 

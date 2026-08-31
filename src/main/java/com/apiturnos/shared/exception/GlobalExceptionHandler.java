@@ -31,9 +31,9 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
-    @ExceptionHandler(ClienteNoPerteneceProfesionalException.class)
-    public ResponseEntity<ErrorResponseDto> handleClienteNoPerteneceProfesional(
-            ClienteNoPerteneceProfesionalException ex, HttpServletRequest request) {
+    @ExceptionHandler({ClienteNoPerteneceProfesionalException.class, TipoAtencionNoPerteneceProfesionalException.class})
+    public ResponseEntity<ErrorResponseDto> handleNoPerteneceProfesional(
+            NegocioException ex, HttpServletRequest request) {
         log.warn("Acceso no autorizado en {}: {}", request.getRequestURI(), ex.getMessage());
         ErrorResponseDto error = new ErrorResponseDto(
                 HttpStatus.FORBIDDEN.value(),
