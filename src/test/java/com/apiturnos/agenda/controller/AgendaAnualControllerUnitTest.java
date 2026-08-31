@@ -1,15 +1,15 @@
 package com.apiturnos.agenda.controller;
 
 import com.apiturnos.agenda.dto.CrearAgendaAnualRequestDto;
-import com.apiturnos.agenda.dto.MesAgendaResumenResponseDto;
 import com.apiturnos.agenda.model.AgendaAnual;
 import com.apiturnos.agenda.model.MesAgenda;
 import com.apiturnos.agenda.repository.AgendaAnualRepository;
+import com.apiturnos.agenda.repository.MesAgendaRepository;
 import com.apiturnos.agenda.service.CrearAgendaAnual;
-import com.apiturnos.agenda.service.ListarMesesAgendaAnual;
+import com.apiturnos.estado.model.AmbitoEstado;
+import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.profesional.model.Profesional;
 import com.apiturnos.shared.exception.AgendaAnualDuplicadaException;
-import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import com.apiturnos.shared.exception.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -41,7 +42,7 @@ class AgendaAnualControllerUnitTest {
 
     private MockMvc mockMvc;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Mock
     private CrearAgendaAnual crearAgendaAnual;
@@ -50,7 +51,10 @@ class AgendaAnualControllerUnitTest {
     private AgendaAnualRepository agendaAnualRepository;
 
     @Mock
-    private ListarMesesAgendaAnual listarMesesAgendaAnual;
+    private MesAgendaRepository mesAgendaRepository;
+
+    @Mock
+    private GestorCambioEstado gestorCambioEstado;
 
     @InjectMocks
     private AgendaAnualController agendaAnualController;
@@ -126,8 +130,12 @@ class AgendaAnualControllerUnitTest {
         mes.setNroMes(1);
         mes.setRepetirConfiguracion(false);
 
-        MesAgendaResumenResponseDto dto = new MesAgendaResumenResponseDto(mes, "ACTIVO");
-        when(listarMesesAgendaAnual.ejecutar(1L, 2027)).thenReturn(List.of(dto));
+        when(agendaAnualRepository.findByProfesionalIdAndAnio(1L, 2027))
+                .thenReturn(Optional.of(agenda));
+        when(mesAgendaRepository.findByAgendaAnualId(10L))
+                .thenReturn(List.of(mes));
+        when(gestorCambioEstado.obtenerEstadosActualesPorEntidades(AmbitoEstado.MES_AGENDA, List.of(101L)))
+                .thenReturn(Map.of(101L, "ACTIVO"));
 
         mockMvc.perform(get("/api/profesionales/1/agendas/2027/meses"))
                 .andExpect(status().isOk())
@@ -137,4 +145,3 @@ class AgendaAnualControllerUnitTest {
                 .andExpect(jsonPath("$[0].estadoActual").value("ACTIVO"));
     }
 }
-

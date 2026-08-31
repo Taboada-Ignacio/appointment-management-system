@@ -15,6 +15,7 @@ import com.apiturnos.shared.exception.ClienteNoPerteneceProfesionalException;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/profesionales/{profesionalId}/meses-agenda")
+@Transactional(readOnly = true)
 public class MesAgendaController {
 
     private final MesAgendaRepository mesAgendaRepository;
@@ -78,6 +80,7 @@ public class MesAgendaController {
     }
 
     @PostMapping("/{mesAgendaId}/dias")
+    @Transactional
     public ResponseEntity<List<DiaAgendaResumenResponseDto>> generarDias(
             @PathVariable Long profesionalId,
             @PathVariable Long mesAgendaId) {
@@ -93,6 +96,7 @@ public class MesAgendaController {
     }
 
     @PostMapping("/{mesAgendaId}/modo-semana")
+    @Transactional
     public ResponseEntity<MesAgendaDetalleResponseDto> configurarModoSemana(
             @PathVariable Long profesionalId,
             @PathVariable Long mesAgendaId,
@@ -117,6 +121,7 @@ public class MesAgendaController {
     }
 
     @PostMapping("/{mesAgendaId}/modo-mes")
+    @Transactional
     public ResponseEntity<MesAgendaDetalleResponseDto> configurarModoMes(
             @PathVariable Long profesionalId,
             @PathVariable Long mesAgendaId,
@@ -141,6 +146,7 @@ public class MesAgendaController {
     }
 
     @PostMapping("/{mesAgendaId}/activar")
+    @Transactional
     public ResponseEntity<Void> activar(
             @PathVariable Long profesionalId,
             @PathVariable Long mesAgendaId,
@@ -150,6 +156,7 @@ public class MesAgendaController {
     }
 
     @PostMapping("/{mesAgendaId}/inactivar")
+    @Transactional
     public ResponseEntity<Void> inactivar(
             @PathVariable Long profesionalId,
             @PathVariable Long mesAgendaId,
@@ -159,6 +166,7 @@ public class MesAgendaController {
     }
 
     @PutMapping("/{mesAgendaId}/repetir-configuracion")
+    @Transactional
     public ResponseEntity<MesAgendaResumenResponseDto> actualizarRepetirConfiguracion(
             @PathVariable Long profesionalId,
             @PathVariable Long mesAgendaId,
@@ -170,6 +178,7 @@ public class MesAgendaController {
     }
 
     @PostMapping("/{mesAgendaId}/repetir")
+    @Transactional
     public ResponseEntity<MesAgendaResumenResponseDto> repetirConfiguracionAlSiguienteMes(
             @PathVariable Long profesionalId,
             @PathVariable Long mesAgendaId) {

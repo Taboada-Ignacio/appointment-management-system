@@ -1,10 +1,14 @@
 package com.apiturnos.turno.model;
 
+import com.apiturnos.agenda.model.ExcepcionAgenda;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import java.util.Objects;
@@ -19,6 +23,10 @@ public class MotivoBajaTurno {
 
     @Column(name = "motivo", nullable = false)
     private String motivo;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "excepcion_agenda_id")
+    private ExcepcionAgenda excepcionAgenda;
 
     public MotivoBajaTurno() {
     }
@@ -37,6 +45,14 @@ public class MotivoBajaTurno {
 
     public void setMotivo(String motivo) {
         this.motivo = motivo;
+    }
+
+    public ExcepcionAgenda getExcepcionAgenda() {
+        return excepcionAgenda;
+    }
+
+    public void setExcepcionAgenda(ExcepcionAgenda excepcionAgenda) {
+        this.excepcionAgenda = excepcionAgenda;
     }
 
     @Override

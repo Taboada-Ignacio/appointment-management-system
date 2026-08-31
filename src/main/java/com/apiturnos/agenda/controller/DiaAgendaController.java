@@ -15,6 +15,7 @@ import com.apiturnos.shared.exception.ClienteNoPerteneceProfesionalException;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -22,6 +23,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/profesionales/{profesionalId}/dias-agenda")
+@Transactional(readOnly = true)
 public class DiaAgendaController {
 
     private final DiaAgendaRepository diaAgendaRepository;
@@ -60,6 +62,7 @@ public class DiaAgendaController {
     }
 
     @PutMapping("/{diaAgendaId}/brechas")
+    @Transactional
     public ResponseEntity<DiaAgendaDetalleResponseDto> configurarBrechas(
             @PathVariable Long profesionalId,
             @PathVariable Long diaAgendaId,

@@ -548,6 +548,8 @@ class DomainModelIntegrationTest {
         sinMotivo.setMotivoBajaTurno(null);
         sinMotivo = cambioEstadoRepository.save(sinMotivo);
         assertThat(sinMotivo.getMotivoBajaTurno()).isNull();
+        sinMotivo.setFechaHoraFin(Instant.now());
+        cambioEstadoRepository.save(sinMotivo);
 
         // Cambio CON motivo
         MotivoBajaTurno motivo = new MotivoBajaTurno();

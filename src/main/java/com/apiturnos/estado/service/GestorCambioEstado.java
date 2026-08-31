@@ -32,10 +32,10 @@ public class GestorCambioEstado {
             "DADO_DE_BAJA", Set.of("HABILITADO", "PENDIENTE_DE_VERIFICACION", "INHABILITADO", "REQUIERE_APROBACION")
         ),
         AmbitoEstado.TURNO, Map.of(
-            "PENDIENTE_DE_APROBACION", Set.of("ASIGNADO", "CANCELADO"),
+            "PENDIENTE_DE_APROBACION", Set.of("ASIGNADO", "CANCELADO", "DADO_DE_BAJA"),
             "ASIGNADO", Set.of("REPROGRAMADO", "CANCELADO", "COMPLETADO", "NO_ASISTIO", "DADO_DE_BAJA", "CONFIRMADO"),
-            "REPROGRAMADO", Set.of("ASIGNADO"),
-            "CONFIRMADO", Set.of("CANCELADO", "COMPLETADO", "NO_ASISTIO")
+            "REPROGRAMADO", Set.of("ASIGNADO", "DADO_DE_BAJA"),
+            "CONFIRMADO", Set.of("CANCELADO", "COMPLETADO", "NO_ASISTIO", "DADO_DE_BAJA")
         ),
         AmbitoEstado.MES_AGENDA, Map.of(
             "ACTIVO", Set.of("INACTIVO"),
@@ -54,7 +54,9 @@ public class GestorCambioEstado {
     }
 
     public Optional<CambioEstado> obtenerCambioEstadoActual(AmbitoEstado ambito, Long entidadId) {
-        return cambioEstadoRepository.findFirstByAmbitoAndEntidadIdOrderByFechaHoraInicioDesc(ambito, entidadId);
+        return cambioEstadoRepository
+                .findFirstByAmbitoAndEntidadIdAndFechaHoraFinIsNullOrderByIdDesc(ambito, entidadId)
+                .or(() -> cambioEstadoRepository.findFirstByAmbitoAndEntidadIdOrderByFechaHoraInicioDesc(ambito, entidadId));
     }
 
     public String obtenerNombreEstadoActual(AmbitoEstado ambito, Long entidadId) {
@@ -89,7 +91,7 @@ public class GestorCambioEstado {
         for (CambioEstado ce : activos) {
             resultado.put(ce.getEntidadId(), ce.getEstado().getNombre());
         }
-        // Para entidades sin fechaHoraFin null (si hubiera alguna), fallback individual
+        // Para entidades sin fechaHoraFin null (si hubiera alguna), fallback individual determinístico
         for (Long id : entidadIds) {
             if (!resultado.containsKey(id)) {
                 String actual = obtenerNombreEstadoActual(ambito, id);
@@ -111,7 +113,9 @@ public class GestorCambioEstado {
         cambio.setFechaHoraInicio(Instant.now());
         cambio.setUsuario(usuario);
         cambio.setObservacion(observacion);
-        return cambioEstadoRepository.save(cambio);
+        CambioEstado guardado = cambioEstadoRepository.save(cambio);
+        cambioEstadoRepository.flush();
+        return guardado;
     }
 
     public CambioEstado registrarCambio(AmbitoEstado ambito, Long entidadId, String nombreEstadoDestino,
@@ -132,7 +136,9 @@ public class GestorCambioEstado {
         cambio.setUsuario(usuario);
         cambio.setObservacion(observacion);
         cambio.setMotivoBajaTurno(motivo);
-        return cambioEstadoRepository.save(cambio);
+        CambioEstado guardado = cambioEstadoRepository.save(cambio);
+        cambioEstadoRepository.flush();
+        return guardado;
     }
 
     public void validarTransicion(AmbitoEstado ambito, String estadoActual, String estadoDestino) {
@@ -151,6 +157,7 @@ public class GestorCambioEstado {
             if (anterior.getFechaHoraFin() == null) {
                 anterior.setFechaHoraFin(Instant.now());
                 cambioEstadoRepository.save(anterior);
+                cambioEstadoRepository.flush();
             }
         });
     }

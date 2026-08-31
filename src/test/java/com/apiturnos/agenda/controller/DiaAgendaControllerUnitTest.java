@@ -1,12 +1,17 @@
 package com.apiturnos.agenda.controller;
 
 import com.apiturnos.agenda.dto.BrechaHorariaRequestDto;
-import com.apiturnos.agenda.dto.BrechaHorariaResponseDto;
 import com.apiturnos.agenda.dto.ConfigurarDiaRequestDto;
-import com.apiturnos.agenda.dto.DiaAgendaDetalleResponseDto;
+import com.apiturnos.agenda.model.AgendaAnual;
+import com.apiturnos.agenda.model.BrechaHoraria;
 import com.apiturnos.agenda.model.DiaAgenda;
+import com.apiturnos.agenda.model.MesAgenda;
+import com.apiturnos.agenda.repository.BrechaHorariaRepository;
+import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.agenda.service.ConfigurarDiaAgenda;
-import com.apiturnos.agenda.service.ObtenerDetalleDiaAgenda;
+import com.apiturnos.estado.model.AmbitoEstado;
+import com.apiturnos.estado.service.GestorCambioEstado;
+import com.apiturnos.profesional.model.Profesional;
 import com.apiturnos.shared.exception.DiaAgendaNoValidoException;
 import com.apiturnos.shared.exception.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,10 +26,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -39,17 +44,21 @@ class DiaAgendaControllerUnitTest {
 
     private MockMvc mockMvc;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Mock
-    private ObtenerDetalleDiaAgenda obtenerDetalleDiaAgenda;
+    private DiaAgendaRepository diaAgendaRepository;
+    @Mock
+    private BrechaHorariaRepository brechaHorariaRepository;
     @Mock
     private ConfigurarDiaAgenda configurarDiaAgenda;
+    @Mock
+    private GestorCambioEstado gestorCambioEstado;
 
     @InjectMocks
     private DiaAgendaController diaAgendaController;
 
-    private DiaAgendaDetalleResponseDto diaDto;
+    private DiaAgenda dia;
 
     @BeforeEach
     void setUp() {
@@ -57,19 +66,33 @@ class DiaAgendaControllerUnitTest {
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
-        diaDto = new DiaAgendaDetalleResponseDto(
-                null, "ACTIVO", List.of(new BrechaHorariaResponseDto(1L, LocalTime.of(8, 0), LocalTime.of(12, 0)))
-        );
-        diaDto.setId(50L);
-        diaDto.setFecha(LocalDate.of(2027, 5, 10));
-        diaDto.setDiaSemana(DayOfWeek.MONDAY);
-        diaDto.setNombreDiaSemana("lunes");
+        Profesional profesional = new Profesional();
+        profesional.setId(1L);
+
+        AgendaAnual agenda = new AgendaAnual();
+        agenda.setProfesional(profesional);
+
+        MesAgenda mes = new MesAgenda();
+        mes.setAgendaAnual(agenda);
+
+        dia = new DiaAgenda();
+        dia.setId(50L);
+        dia.setMesAgenda(mes);
+        dia.setFecha(LocalDate.of(2027, 5, 10));
     }
 
     @Test
     @DisplayName("GET /api/profesionales/{profesionalId}/dias-agenda/{diaAgendaId} - Retorna detalle 200")
     void testObtenerDetalleDia200() throws Exception {
-        when(obtenerDetalleDiaAgenda.ejecutar(1L, 50L)).thenReturn(diaDto);
+        BrechaHoraria brecha = new BrechaHoraria();
+        brecha.setId(1L);
+        brecha.setDiaAgenda(dia);
+        brecha.setHoraInicioAtencion(LocalTime.of(8, 0));
+        brecha.setHoraFinAtencion(LocalTime.of(12, 0));
+
+        when(diaAgendaRepository.findById(50L)).thenReturn(Optional.of(dia));
+        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.DIA_AGENDA, 50L)).thenReturn("ACTIVO");
+        when(brechaHorariaRepository.findByDiaAgendaId(50L)).thenReturn(List.of(brecha));
 
         mockMvc.perform(get("/api/profesionales/1/dias-agenda/50"))
                 .andExpect(status().isOk())
@@ -95,4 +118,3 @@ class DiaAgendaControllerUnitTest {
                 .andExpect(jsonPath("$.status").value(400));
     }
 }
-

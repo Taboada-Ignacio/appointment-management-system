@@ -42,3 +42,5 @@ springdoc:
     operationsSorter: method
     tagsSorter: alpha
 
+turnos:
+  zona-horaria: ${TURNOS_ZONA_HORARIA:America/Argentina/Buenos_Aires}

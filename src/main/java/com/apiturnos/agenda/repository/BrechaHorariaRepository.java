@@ -8,4 +8,5 @@ import java.util.List;
 @Repository
 public interface BrechaHorariaRepository extends JpaRepository<BrechaHoraria, Long> {
     List<BrechaHoraria> findByDiaAgendaId(Long diaAgendaId);
+    List<BrechaHoraria> findByDiaAgendaIdInOrderByDiaAgendaIdAscHoraInicioAtencionAsc(List<Long> diaAgendaIds);
 }
