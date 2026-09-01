@@ -32,7 +32,7 @@ public class AprobarTurno {
 
     @Transactional
     public Turno ejecutar(Long turnoId, String usuario) {
-        Turno turno = turnoRepository.findById(turnoId)
+        Turno turno = turnoRepository.findByIdForUpdate(turnoId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("Turno", turnoId));
 
         gestorCambioEstado.registrarCambio(

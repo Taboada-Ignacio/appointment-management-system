@@ -3,6 +3,7 @@ package com.apiturnos.service;
 import com.apiturnos.agenda.model.*;
 import com.apiturnos.agenda.repository.*;
 import com.apiturnos.agenda.service.*;
+import com.apiturnos.auditoria.model.OperacionAuditoria;
 import com.apiturnos.auditoria.repository.AuditoriaEventoRepository;
 import com.apiturnos.cliente.model.Cliente;
 import com.apiturnos.cliente.model.TipoDocumento;
@@ -13,6 +14,8 @@ import com.apiturnos.estado.model.CambioEstado;
 import com.apiturnos.estado.repository.CambioEstadoRepository;
 import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.notificacion.model.Notificacion;
+import com.apiturnos.notificacion.model.EstadoNotificacion;
+import com.apiturnos.notificacion.model.TipoNotificacion;
 import com.apiturnos.notificacion.repository.NotificacionRepository;
 import com.apiturnos.profesional.model.Configuracion;
 import com.apiturnos.profesional.model.Profesional;
@@ -41,6 +44,9 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -369,7 +375,13 @@ class BusinessRulesIntegrationTest {
 
         // Notificaciones generadas para el cliente
         List<Notificacion> notificaciones = notificacionRepository.findByClienteId(cliente.getId());
-        assertThat(notificaciones).anyMatch(n -> n.getMensaje().contains("dado de baja"));
+        assertThat(notificaciones).anyMatch(n -> n.getTipo() == TipoNotificacion.BAJA_TURNO
+                && n.getEstado() == EstadoNotificacion.PENDIENTE
+                && n.getMensaje().contains("dado de baja"));
+        assertThat(auditoriaEventoRepository.findByModuloAndEntidadAndEntidadIdOrderByFechaHoraDesc(
+                "TURNO", "Turno", turnoId.toString()))
+                .anyMatch(evento -> evento.getOperacion() == OperacionAuditoria.STATE_CHANGE
+                        && evento.getDetalles().contains("TURNO_DADO_DE_BAJA"));
     }
 
     @Test
@@ -425,6 +437,12 @@ class BusinessRulesIntegrationTest {
                 .orElseThrow();
         assertThat(ultimo.getMotivoBajaTurno()).isNotNull();
         assertThat(ultimo.getMotivoBajaTurno().getMotivo()).isEqualTo("Imprevisto personal");
+        assertThat(auditoriaEventoRepository.findByModuloAndEntidadAndEntidadIdOrderByFechaHoraDesc(
+                "TURNO", "Turno", r.getTurno().getId().toString()))
+                .anyMatch(evento -> evento.getOperacion() == OperacionAuditoria.CANCEL);
+        assertThat(notificacionRepository.findByClienteId(cliente.getId()))
+                .anyMatch(notificacion -> notificacion.getTipo() == TipoNotificacion.CANCELACION_TURNO
+                        && notificacion.getEstado() == EstadoNotificacion.PENDIENTE);
     }
 
     @Test
@@ -455,6 +473,129 @@ class BusinessRulesIntegrationTest {
         registrarAusencia.ejecutar(r2.getTurno().getId(), "admin");
         assertThat(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, r2.getTurno().getId()))
                 .isEqualTo("NO_ASISTIO");
+    }
+
+    @Test
+    @DisplayName("11. Multiples reprogramaciones conservan todo el historial y terminan ASIGNADO")
+    void test11_MultiplesReprogramacionesConservanHistorial() {
+        Cliente cliente = registrarCliente.ejecutar(
+                profesional1.getId(), "Mario", "Suarez",
+                TipoDocumento.DNI, "41222333", "mario@test.com", "+5491100014", false, "admin");
+
+        CrearTurno.Resultado creado = crearTurno.ejecutar(
+                diaAgenda1.getId(), cliente.getId(),
+                Instant.parse("2026-08-15T09:00:00Z"), Instant.parse("2026-08-15T09:30:00Z"),
+                OrigenTurno.PROFESIONAL, "Original", "admin");
+        Long turnoId = creado.getTurno().getId();
+
+        reprogramarTurno.ejecutar(
+                turnoId, diaAgenda1.getId(),
+                Instant.parse("2026-08-15T12:00:00Z"), Instant.parse("2026-08-15T12:30:00Z"),
+                "Primer cambio", "admin");
+        reprogramarTurno.ejecutar(
+                turnoId, diaAgenda1.getId(),
+                Instant.parse("2026-08-15T13:00:00Z"), Instant.parse("2026-08-15T13:30:00Z"),
+                "Segundo cambio", "admin");
+
+        assertThat(gestorCambioEstado.obtenerHistorial(AmbitoEstado.TURNO, turnoId))
+                .extracting(cambio -> cambio.getEstado().getNombre())
+                .containsExactly("ASIGNADO", "REPROGRAMADO", "ASIGNADO", "REPROGRAMADO", "ASIGNADO");
+        assertThat(turnoHistorialRepository.findByTurnoIdOrderByFechaEventoAsc(turnoId)).hasSize(2);
+        assertThat(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, turnoId))
+                .isEqualTo("ASIGNADO");
+    }
+
+    @Test
+    @DisplayName("12. Reprogramacion invalida no modifica Turno ni historial de estados")
+    void test12_ReprogramacionInvalidaHaceRollbackCompleto() {
+        Cliente cliente = registrarCliente.ejecutar(
+                profesional1.getId(), "Julia", "Lopez",
+                TipoDocumento.DNI, "42333444", "julia@test.com", "+5491100015", false, "admin");
+
+        Instant inicioOriginal = Instant.parse("2026-08-15T09:00:00Z");
+        Instant finOriginal = Instant.parse("2026-08-15T09:30:00Z");
+        Long turnoId = crearTurno.ejecutar(
+                diaAgenda1.getId(), cliente.getId(), inicioOriginal, finOriginal,
+                OrigenTurno.PROFESIONAL, "Original", "admin").getTurno().getId();
+
+        assertThatThrownBy(() -> reprogramarTurno.ejecutar(
+                turnoId, diaAgenda1.getId(),
+                Instant.parse("2026-08-15T13:30:00Z"), Instant.parse("2026-08-15T13:00:00Z"),
+                "Horario invalido", "admin"))
+                .isInstanceOf(ReprogramacionTurnoInvalidaException.class);
+
+        Turno persistido = turnoRepository.findById(turnoId).orElseThrow();
+        assertThat(persistido.getInicioEstimado()).isEqualTo(inicioOriginal);
+        assertThat(persistido.getFinEstimado()).isEqualTo(finOriginal);
+        assertThat(gestorCambioEstado.obtenerHistorial(AmbitoEstado.TURNO, turnoId))
+                .extracting(cambio -> cambio.getEstado().getNombre())
+                .containsExactly("ASIGNADO");
+        assertThat(turnoHistorialRepository.findByTurnoIdOrderByFechaEventoAsc(turnoId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("13. Cancelacion y reprogramacion concurrentes producen un historial serializable")
+    void test13_ConcurrenciaNoGeneraHistorialInconsistente() throws Exception {
+        Cliente cliente = registrarCliente.ejecutar(
+                profesional1.getId(), "Nora", "Diaz",
+                TipoDocumento.DNI, "43444555", "nora@test.com", "+5491100016", false, "admin");
+        Long turnoId = crearTurno.ejecutar(
+                diaAgenda1.getId(), cliente.getId(),
+                Instant.parse("2026-08-15T09:00:00Z"), Instant.parse("2026-08-15T09:30:00Z"),
+                OrigenTurno.PROFESIONAL, "Concurrente", "admin").getTurno().getId();
+
+        CountDownLatch inicioSimultaneo = new CountDownLatch(1);
+        CompletableFuture<Boolean> cancelacion = CompletableFuture.supplyAsync(() -> {
+            esperar(inicioSimultaneo);
+            try {
+                cancelarTurno.ejecutar(turnoId, "Cancelacion concurrente", "usuario-a");
+                return true;
+            } catch (RuntimeException ex) {
+                return false;
+            }
+        });
+        CompletableFuture<Boolean> reprogramacion = CompletableFuture.supplyAsync(() -> {
+            esperar(inicioSimultaneo);
+            try {
+                reprogramarTurno.ejecutar(
+                        turnoId, diaAgenda1.getId(),
+                        Instant.parse("2026-08-15T12:00:00Z"), Instant.parse("2026-08-15T12:30:00Z"),
+                        "Reprogramacion concurrente", "usuario-b");
+                return true;
+            } catch (RuntimeException ex) {
+                return false;
+            }
+        });
+
+        inicioSimultaneo.countDown();
+        boolean cancelado = cancelacion.get(15, TimeUnit.SECONDS);
+        boolean reprogramado = reprogramacion.get(15, TimeUnit.SECONDS);
+
+        assertThat(cancelado).isTrue();
+        assertThat(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, turnoId))
+                .isEqualTo("CANCELADO");
+
+        List<String> estados = gestorCambioEstado.obtenerHistorial(AmbitoEstado.TURNO, turnoId).stream()
+                .map(cambio -> cambio.getEstado().getNombre())
+                .toList();
+        if (reprogramado) {
+            assertThat(estados).containsExactly(
+                    "ASIGNADO", "REPROGRAMADO", "ASIGNADO", "CANCELADO");
+        } else {
+            assertThat(estados).containsExactly("ASIGNADO", "CANCELADO");
+        }
+        assertThat(gestorCambioEstado.obtenerHistorial(AmbitoEstado.TURNO, turnoId))
+                .filteredOn(cambio -> cambio.getFechaHoraFin() == null)
+                .hasSize(1);
+    }
+
+    private static void esperar(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(ex);
+        }
     }
 }
 

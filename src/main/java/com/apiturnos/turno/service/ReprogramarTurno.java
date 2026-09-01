@@ -24,6 +24,7 @@ public class ReprogramarTurno {
     private final TurnoRepository turnoRepository;
     private final TurnoHistorialRepository turnoHistorialRepository;
     private final DiaAgendaRepository diaAgendaRepository;
+    private final ValidadorReprogramacionTurno validadorReprogramacion;
     private final GestorCambioEstado gestorCambioEstado;
     private final RegistradorAuditoria registradorAuditoria;
     private final RegistradorNotificacion registradorNotificacion;
@@ -31,12 +32,14 @@ public class ReprogramarTurno {
     public ReprogramarTurno(TurnoRepository turnoRepository,
                             TurnoHistorialRepository turnoHistorialRepository,
                             DiaAgendaRepository diaAgendaRepository,
+                            ValidadorReprogramacionTurno validadorReprogramacion,
                             GestorCambioEstado gestorCambioEstado,
                             RegistradorAuditoria registradorAuditoria,
                             RegistradorNotificacion registradorNotificacion) {
         this.turnoRepository = turnoRepository;
         this.turnoHistorialRepository = turnoHistorialRepository;
         this.diaAgendaRepository = diaAgendaRepository;
+        this.validadorReprogramacion = validadorReprogramacion;
         this.gestorCambioEstado = gestorCambioEstado;
         this.registradorAuditoria = registradorAuditoria;
         this.registradorNotificacion = registradorNotificacion;
@@ -45,11 +48,17 @@ public class ReprogramarTurno {
     @Transactional
     public Turno ejecutar(Long turnoId, Long nuevoDiaAgendaId, Instant nuevoInicio,
                            Instant nuevoFin, String motivo, String usuario) {
-        Turno turno = turnoRepository.findById(turnoId)
+        Turno turno = turnoRepository.findByIdForUpdate(turnoId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("Turno", turnoId));
+
+        String estadoActual = gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, turnoId);
+        gestorCambioEstado.validarTransicion(
+                AmbitoEstado.TURNO, estadoActual, PoliticaTransicionesTurno.REPROGRAMADO);
 
         DiaAgenda nuevoDia = diaAgendaRepository.findById(nuevoDiaAgendaId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("DiaAgenda", nuevoDiaAgendaId));
+
+        validadorReprogramacion.validar(turno, nuevoDia, nuevoInicio, nuevoFin);
 
         // Save history before changes
         TurnoHistorial historial = new TurnoHistorial();

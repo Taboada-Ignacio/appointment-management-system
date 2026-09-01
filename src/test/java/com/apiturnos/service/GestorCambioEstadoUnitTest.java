@@ -8,12 +8,14 @@ import com.apiturnos.estado.repository.EstadoRepository;
 import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.shared.exception.EstadoInvalidoException;
 import com.apiturnos.shared.exception.TransicionEstadoInvalidaException;
+import com.apiturnos.turno.service.PoliticaTransicionesTurno;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
@@ -33,6 +35,9 @@ class GestorCambioEstadoUnitTest {
 
     @Mock
     private CambioEstadoRepository cambioEstadoRepository;
+
+    @Spy
+    private PoliticaTransicionesTurno politicaTransicionesTurno = new PoliticaTransicionesTurno();
 
     @InjectMocks
     private GestorCambioEstado gestorCambioEstado;
@@ -106,7 +111,7 @@ class GestorCambioEstadoUnitTest {
         anterior.setEntidadId(100L);
         anterior.setFechaHoraInicio(Instant.now().minusSeconds(3600));
 
-        when(cambioEstadoRepository.findFirstByAmbitoAndEntidadIdOrderByFechaHoraInicioDesc(AmbitoEstado.CLIENTE, 100L))
+        when(cambioEstadoRepository.findFirstByAmbitoAndEntidadIdOrderByFechaHoraInicioDescIdDesc(AmbitoEstado.CLIENTE, 100L))
                 .thenReturn(Optional.of(anterior));
         when(estadoRepository.findByNombreAndAmbito("INHABILITADO", AmbitoEstado.CLIENTE))
                 .thenReturn(Optional.of(estadoInhabilitado));
@@ -129,7 +134,7 @@ class GestorCambioEstadoUnitTest {
         actual.setAmbito(AmbitoEstado.TURNO);
         actual.setEntidadId(200L);
 
-        when(cambioEstadoRepository.findFirstByAmbitoAndEntidadIdOrderByFechaHoraInicioDesc(AmbitoEstado.TURNO, 200L))
+        when(cambioEstadoRepository.findFirstByAmbitoAndEntidadIdOrderByFechaHoraInicioDescIdDesc(AmbitoEstado.TURNO, 200L))
                 .thenReturn(Optional.of(actual));
 
         // REPROGRAMADO can only transition to ASIGNADO, not CANCELADO
@@ -141,7 +146,7 @@ class GestorCambioEstadoUnitTest {
     @Test
     @DisplayName("Registrar cambio sobre entidad sin estado actual lanza EstadoInvalidoException")
     void testSinEstadoActualLanzaExcepcion() {
-        when(cambioEstadoRepository.findFirstByAmbitoAndEntidadIdOrderByFechaHoraInicioDesc(AmbitoEstado.CLIENTE, 999L))
+        when(cambioEstadoRepository.findFirstByAmbitoAndEntidadIdOrderByFechaHoraInicioDescIdDesc(AmbitoEstado.CLIENTE, 999L))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> gestorCambioEstado.registrarCambio(
@@ -152,7 +157,7 @@ class GestorCambioEstadoUnitTest {
     @Test
     @DisplayName("Obtener historial delega correctamente al repositorio")
     void testObtenerHistorial() {
-        when(cambioEstadoRepository.findByAmbitoAndEntidadIdOrderByFechaHoraInicioAsc(AmbitoEstado.CLIENTE, 100L))
+        when(cambioEstadoRepository.findByAmbitoAndEntidadIdOrderByFechaHoraInicioAscIdAsc(AmbitoEstado.CLIENTE, 100L))
                 .thenReturn(List.of(new CambioEstado(), new CambioEstado()));
 
         List<CambioEstado> historial = gestorCambioEstado.obtenerHistorial(AmbitoEstado.CLIENTE, 100L);

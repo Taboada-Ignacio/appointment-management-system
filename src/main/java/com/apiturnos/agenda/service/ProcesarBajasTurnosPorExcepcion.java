@@ -1,15 +1,10 @@
 package com.apiturnos.agenda.service;
 
 import com.apiturnos.agenda.model.ExcepcionAgenda;
-import com.apiturnos.auditoria.model.OperacionAuditoria;
-import com.apiturnos.auditoria.service.RegistradorAuditoria;
-import com.apiturnos.estado.model.AmbitoEstado;
-import com.apiturnos.estado.service.GestorCambioEstado;
-import com.apiturnos.notificacion.model.TipoNotificacion;
-import com.apiturnos.notificacion.service.RegistradorNotificacion;
 import com.apiturnos.turno.model.MotivoBajaTurno;
 import com.apiturnos.turno.model.Turno;
 import com.apiturnos.turno.repository.MotivoBajaTurnoRepository;
+import com.apiturnos.turno.service.DarDeBajaTurno;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,19 +15,13 @@ public class ProcesarBajasTurnosPorExcepcion {
     private static final int LONGITUD_MAXIMA_MOTIVO = 255;
 
     private final MotivoBajaTurnoRepository motivoBajaTurnoRepository;
-    private final GestorCambioEstado gestorCambioEstado;
-    private final RegistradorNotificacion registradorNotificacion;
-    private final RegistradorAuditoria registradorAuditoria;
+    private final DarDeBajaTurno darDeBajaTurno;
 
     public ProcesarBajasTurnosPorExcepcion(
             MotivoBajaTurnoRepository motivoBajaTurnoRepository,
-            GestorCambioEstado gestorCambioEstado,
-            RegistradorNotificacion registradorNotificacion,
-            RegistradorAuditoria registradorAuditoria) {
+            DarDeBajaTurno darDeBajaTurno) {
         this.motivoBajaTurnoRepository = motivoBajaTurnoRepository;
-        this.gestorCambioEstado = gestorCambioEstado;
-        this.registradorNotificacion = registradorNotificacion;
-        this.registradorAuditoria = registradorAuditoria;
+        this.darDeBajaTurno = darDeBajaTurno;
     }
 
     /**
@@ -49,36 +38,11 @@ public class ProcesarBajasTurnosPorExcepcion {
         }
 
         MotivoBajaTurno motivo = crearNuevoMotivo(excepcion);
-        Long profesionalId = excepcion.getProfesional().getId();
-
         for (Turno turno : turnosAfectados) {
             String observacion = "Baja por excepción de agenda " + excepcion.getTipo()
                     + " (excepción " + excepcion.getId() + "): " + excepcion.getMotivo();
 
-            gestorCambioEstado.registrarCambio(
-                    AmbitoEstado.TURNO,
-                    turno.getId(),
-                    "DADO_DE_BAJA",
-                    usuario,
-                    observacion,
-                    motivo);
-
-            registradorNotificacion.registrarSiCorresponde(
-                    turno.getCliente(),
-                    turno,
-                    TipoNotificacion.BAJA_TURNO,
-                    "Su turno del " + turno.getDiaAgenda().getFecha()
-                            + " ha sido dado de baja. Motivo: " + excepcion.getMotivo());
-
-            registradorAuditoria.registrar(
-                    "TURNO",
-                    "Turno",
-                    turno.getId(),
-                    OperacionAuditoria.STATE_CHANGE,
-                    usuario,
-                    profesionalId,
-                    "TURNO_DADO_DE_BAJA_POR_EXCEPCION: excepcionId=" + excepcion.getId()
-                            + "; tipo=" + excepcion.getTipo());
+            darDeBajaTurno.ejecutar(turno.getId(), motivo, observacion, usuario);
         }
     }
 

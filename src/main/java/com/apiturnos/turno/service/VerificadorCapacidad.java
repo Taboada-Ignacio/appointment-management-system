@@ -51,6 +51,24 @@ public class VerificadorCapacidad {
         return solapados >= maxSimultaneos;
     }
 
+    public boolean excedidaCapacidad(Long diaAgendaId, Instant inicio, Instant fin,
+                                     Long excluirTurnoId, int maxSimultaneos) {
+        int solapados = 0;
+        for (Turno turno : turnoRepository.findByDiaAgendaId(diaAgendaId)) {
+            if (excluirTurnoId != null && excluirTurnoId.equals(turno.getId())) {
+                continue;
+            }
+            if (seSolapan(turno.getInicioEstimado(), turno.getFinEstimado(), inicio, fin)) {
+                String estado = gestorCambioEstado.obtenerNombreEstadoActual(
+                        AmbitoEstado.TURNO, turno.getId());
+                if (estado != null && ESTADOS_ACTIVOS.contains(estado)) {
+                    solapados++;
+                }
+            }
+        }
+        return solapados >= maxSimultaneos;
+    }
+
     private boolean seSolapan(Instant inicio1, Instant fin1, Instant inicio2, Instant fin2) {
         return inicio1.isBefore(fin2) && inicio2.isBefore(fin1);
     }

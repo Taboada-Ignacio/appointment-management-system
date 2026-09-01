@@ -9,6 +9,7 @@ import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import com.apiturnos.shared.exception.EstadoInvalidoException;
 import com.apiturnos.shared.exception.TransicionEstadoInvalidaException;
 import com.apiturnos.turno.model.MotivoBajaTurno;
+import com.apiturnos.turno.service.PoliticaTransicionesTurno;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -22,6 +23,7 @@ public class GestorCambioEstado {
 
     private final EstadoRepository estadoRepository;
     private final CambioEstadoRepository cambioEstadoRepository;
+    private final PoliticaTransicionesTurno politicaTransicionesTurno;
 
     private static final Map<AmbitoEstado, Map<String, Set<String>>> TRANSICIONES = Map.of(
         AmbitoEstado.CLIENTE, Map.of(
@@ -30,12 +32,6 @@ public class GestorCambioEstado {
             "REQUIERE_APROBACION", Set.of("HABILITADO", "INHABILITADO", "DADO_DE_BAJA"),
             "INHABILITADO", Set.of("HABILITADO", "REQUIERE_APROBACION", "DADO_DE_BAJA"),
             "DADO_DE_BAJA", Set.of("HABILITADO", "PENDIENTE_DE_VERIFICACION", "INHABILITADO", "REQUIERE_APROBACION")
-        ),
-        AmbitoEstado.TURNO, Map.of(
-            "PENDIENTE_DE_APROBACION", Set.of("ASIGNADO", "CANCELADO", "DADO_DE_BAJA"),
-            "ASIGNADO", Set.of("REPROGRAMADO", "CANCELADO", "COMPLETADO", "NO_ASISTIO", "DADO_DE_BAJA", "CONFIRMADO"),
-            "REPROGRAMADO", Set.of("ASIGNADO", "DADO_DE_BAJA"),
-            "CONFIRMADO", Set.of("CANCELADO", "COMPLETADO", "NO_ASISTIO", "DADO_DE_BAJA")
         ),
         AmbitoEstado.MES_AGENDA, Map.of(
             "ACTIVO", Set.of("INACTIVO"),
@@ -48,15 +44,18 @@ public class GestorCambioEstado {
         )
     );
 
-    public GestorCambioEstado(EstadoRepository estadoRepository, CambioEstadoRepository cambioEstadoRepository) {
+    public GestorCambioEstado(EstadoRepository estadoRepository,
+                              CambioEstadoRepository cambioEstadoRepository,
+                              PoliticaTransicionesTurno politicaTransicionesTurno) {
         this.estadoRepository = estadoRepository;
         this.cambioEstadoRepository = cambioEstadoRepository;
+        this.politicaTransicionesTurno = politicaTransicionesTurno;
     }
 
     public Optional<CambioEstado> obtenerCambioEstadoActual(AmbitoEstado ambito, Long entidadId) {
         return cambioEstadoRepository
                 .findFirstByAmbitoAndEntidadIdAndFechaHoraFinIsNullOrderByIdDesc(ambito, entidadId)
-                .or(() -> cambioEstadoRepository.findFirstByAmbitoAndEntidadIdOrderByFechaHoraInicioDesc(ambito, entidadId));
+                .or(() -> cambioEstadoRepository.findFirstByAmbitoAndEntidadIdOrderByFechaHoraInicioDescIdDesc(ambito, entidadId));
     }
 
     public String obtenerNombreEstadoActual(AmbitoEstado ambito, Long entidadId) {
@@ -66,7 +65,7 @@ public class GestorCambioEstado {
     }
 
     public List<CambioEstado> obtenerHistorial(AmbitoEstado ambito, Long entidadId) {
-        return cambioEstadoRepository.findByAmbitoAndEntidadIdOrderByFechaHoraInicioAsc(ambito, entidadId);
+        return cambioEstadoRepository.findByAmbitoAndEntidadIdOrderByFechaHoraInicioAscIdAsc(ambito, entidadId);
     }
 
     public String obtenerEstadoAnteriorADadoDeBaja(AmbitoEstado ambito, Long entidadId) {
@@ -105,6 +104,13 @@ public class GestorCambioEstado {
 
     public CambioEstado registrarCambioInicial(AmbitoEstado ambito, Long entidadId, String nombreEstado,
                                                 String usuario, String observacion) {
+        if (obtenerCambioEstadoActual(ambito, entidadId).isPresent()) {
+            throw new EstadoInvalidoException(
+                    "Ya existe un estado para " + ambito + " con id " + entidadId);
+        }
+        if (ambito == AmbitoEstado.TURNO) {
+            politicaTransicionesTurno.validarEstadoInicial(nombreEstado, entidadId);
+        }
         Estado estado = buscarEstado(nombreEstado, ambito);
         CambioEstado cambio = new CambioEstado();
         cambio.setEstado(estado);
@@ -124,15 +130,16 @@ public class GestorCambioEstado {
         if (estadoActual == null) {
             throw new EstadoInvalidoException("No existe estado actual para " + ambito + " con id " + entidadId);
         }
-        validarTransicion(ambito, estadoActual, nombreEstadoDestino);
-        finalizarCambioAnterior(ambito, entidadId);
+        validarTransicion(ambito, entidadId, estadoActual, nombreEstadoDestino, motivo);
+        Instant instanteTransicion = Instant.now();
+        finalizarCambioAnterior(ambito, entidadId, instanteTransicion);
 
         Estado estadoDestino = buscarEstado(nombreEstadoDestino, ambito);
         CambioEstado cambio = new CambioEstado();
         cambio.setEstado(estadoDestino);
         cambio.setAmbito(ambito);
         cambio.setEntidadId(entidadId);
-        cambio.setFechaHoraInicio(Instant.now());
+        cambio.setFechaHoraInicio(instanteTransicion);
         cambio.setUsuario(usuario);
         cambio.setObservacion(observacion);
         cambio.setMotivoBajaTurno(motivo);
@@ -142,6 +149,20 @@ public class GestorCambioEstado {
     }
 
     public void validarTransicion(AmbitoEstado ambito, String estadoActual, String estadoDestino) {
+        if (ambito == AmbitoEstado.TURNO) {
+            politicaTransicionesTurno.validarTransicion(null, estadoActual, estadoDestino);
+            return;
+        }
+        validarTransicion(ambito, null, estadoActual, estadoDestino, null);
+    }
+
+    private void validarTransicion(AmbitoEstado ambito, Long entidadId, String estadoActual,
+                                   String estadoDestino, MotivoBajaTurno motivo) {
+        if (ambito == AmbitoEstado.TURNO) {
+            politicaTransicionesTurno.validarTransicion(
+                    entidadId, estadoActual, estadoDestino, motivo);
+            return;
+        }
         Map<String, Set<String>> transiciones = TRANSICIONES.get(ambito);
         if (transiciones == null) {
             throw new TransicionEstadoInvalidaException(estadoActual, estadoDestino, ambito.name());
@@ -152,10 +173,10 @@ public class GestorCambioEstado {
         }
     }
 
-    private void finalizarCambioAnterior(AmbitoEstado ambito, Long entidadId) {
+    private void finalizarCambioAnterior(AmbitoEstado ambito, Long entidadId, Instant fechaHoraFin) {
         obtenerCambioEstadoActual(ambito, entidadId).ifPresent(anterior -> {
             if (anterior.getFechaHoraFin() == null) {
-                anterior.setFechaHoraFin(Instant.now());
+                anterior.setFechaHoraFin(fechaHoraFin);
                 cambioEstadoRepository.save(anterior);
                 cambioEstadoRepository.flush();
             }

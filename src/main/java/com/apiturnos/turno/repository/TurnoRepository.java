@@ -2,6 +2,7 @@ package com.apiturnos.turno.repository;
 
 import com.apiturnos.turno.model.Turno;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -9,9 +10,16 @@ import org.springframework.stereotype.Repository;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface TurnoRepository extends JpaRepository<Turno, Long> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT t FROM Turno t WHERE t.id = :id")
+    Optional<Turno> findByIdForUpdate(@Param("id") Long id);
+
     List<Turno> findByDiaAgendaId(Long diaAgendaId);
     List<Turno> findByClienteId(Long clienteId);
 
@@ -62,4 +70,3 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
             @Param("inicio") Instant inicio,
             @Param("fin") Instant fin);
 }
-

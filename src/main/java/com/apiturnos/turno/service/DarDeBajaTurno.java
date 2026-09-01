@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class CancelarTurno {
+public class DarDeBajaTurno {
 
     private final TurnoRepository turnoRepository;
     private final MotivoBajaTurnoRepository motivoBajaTurnoRepository;
@@ -24,11 +24,11 @@ public class CancelarTurno {
     private final RegistradorAuditoria registradorAuditoria;
     private final RegistradorNotificacion registradorNotificacion;
 
-    public CancelarTurno(TurnoRepository turnoRepository,
-                         MotivoBajaTurnoRepository motivoBajaTurnoRepository,
-                         GestorCambioEstado gestorCambioEstado,
-                         RegistradorAuditoria registradorAuditoria,
-                         RegistradorNotificacion registradorNotificacion) {
+    public DarDeBajaTurno(TurnoRepository turnoRepository,
+                          MotivoBajaTurnoRepository motivoBajaTurnoRepository,
+                          GestorCambioEstado gestorCambioEstado,
+                          RegistradorAuditoria registradorAuditoria,
+                          RegistradorNotificacion registradorNotificacion) {
         this.turnoRepository = turnoRepository;
         this.motivoBajaTurnoRepository = motivoBajaTurnoRepository;
         this.gestorCambioEstado = gestorCambioEstado;
@@ -39,25 +39,37 @@ public class CancelarTurno {
     @Transactional
     public Turno ejecutar(Long turnoId, String motivoTexto, String usuario) {
         if (motivoTexto == null || motivoTexto.isBlank()) {
-            throw new EstadoInvalidoException("Cancelar un Turno requiere un motivo");
+            throw new EstadoInvalidoException("Dar de baja un Turno requiere un motivo");
         }
-        Turno turno = turnoRepository.findByIdForUpdate(turnoId)
-                .orElseThrow(() -> new EntidadNoEncontradaException("Turno", turnoId));
-
         MotivoBajaTurno motivo = new MotivoBajaTurno();
         motivo.setMotivo(motivoTexto.trim());
         motivo = motivoBajaTurnoRepository.save(motivo);
+        return ejecutar(turnoId, motivo, motivoTexto.trim(), usuario);
+    }
+
+    @Transactional
+    public Turno ejecutar(Long turnoId, MotivoBajaTurno motivo,
+                          String observacion, String usuario) {
+        if (motivo == null) {
+            throw new EstadoInvalidoException("Dar de baja un Turno requiere MotivoBajaTurno");
+        }
+
+        Turno turno = turnoRepository.findByIdForUpdate(turnoId)
+                .orElseThrow(() -> new EntidadNoEncontradaException("Turno", turnoId));
 
         gestorCambioEstado.registrarCambio(
-                AmbitoEstado.TURNO, turnoId, "CANCELADO", usuario, motivoTexto, motivo);
+                AmbitoEstado.TURNO, turnoId, PoliticaTransicionesTurno.DADO_DE_BAJA,
+                usuario, observacion, motivo);
 
         Long profesionalId = turno.getDiaAgenda().getMesAgenda().getAgendaAnual().getProfesional().getId();
-        registradorAuditoria.registrar("TURNO", "Turno", turnoId,
-                OperacionAuditoria.CANCEL, usuario, profesionalId, "Turno cancelado: " + motivoTexto);
+        registradorAuditoria.registrar(
+                "TURNO", "Turno", turnoId, OperacionAuditoria.STATE_CHANGE,
+                usuario, profesionalId, "TURNO_DADO_DE_BAJA: " + observacion);
 
-        registradorNotificacion.registrarSiCorresponde(turno.getCliente(), turno,
-                TipoNotificacion.CANCELACION_TURNO, "Su turno del " + turno.getDiaAgenda().getFecha() + " ha sido cancelado. Motivo: " + motivoTexto);
-
+        registradorNotificacion.registrarSiCorresponde(
+                turno.getCliente(), turno, TipoNotificacion.BAJA_TURNO,
+                "Su turno del " + turno.getDiaAgenda().getFecha()
+                        + " ha sido dado de baja. Motivo: " + motivo.getMotivo());
         return turno;
     }
 }
