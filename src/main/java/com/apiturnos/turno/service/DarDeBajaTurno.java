@@ -8,6 +8,7 @@ import com.apiturnos.notificacion.model.TipoNotificacion;
 import com.apiturnos.notificacion.service.RegistradorNotificacion;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import com.apiturnos.shared.exception.EstadoInvalidoException;
+import com.apiturnos.shared.exception.TurnoNoPerteneceProfesionalException;
 import com.apiturnos.turno.model.MotivoBajaTurno;
 import com.apiturnos.turno.model.Turno;
 import com.apiturnos.turno.repository.MotivoBajaTurnoRepository;
@@ -37,18 +38,23 @@ public class DarDeBajaTurno {
     }
 
     @Transactional
-    public Turno ejecutar(Long turnoId, String motivoTexto, String usuario) {
+    public Turno ejecutar(Long profesionalId, Long turnoId, String motivoTexto, String usuario) {
         if (motivoTexto == null || motivoTexto.isBlank()) {
             throw new EstadoInvalidoException("Dar de baja un Turno requiere un motivo");
         }
         MotivoBajaTurno motivo = new MotivoBajaTurno();
         motivo.setMotivo(motivoTexto.trim());
         motivo = motivoBajaTurnoRepository.save(motivo);
-        return ejecutar(turnoId, motivo, motivoTexto.trim(), usuario);
+        return ejecutar(profesionalId, turnoId, motivo, motivoTexto.trim(), usuario);
     }
 
     @Transactional
-    public Turno ejecutar(Long turnoId, MotivoBajaTurno motivo,
+    public Turno ejecutar(Long turnoId, String motivoTexto, String usuario) {
+        return ejecutar(null, turnoId, motivoTexto, usuario);
+    }
+
+    @Transactional
+    public Turno ejecutar(Long profesionalId, Long turnoId, MotivoBajaTurno motivo,
                           String observacion, String usuario) {
         if (motivo == null) {
             throw new EstadoInvalidoException("Dar de baja un Turno requiere MotivoBajaTurno");
@@ -57,19 +63,29 @@ public class DarDeBajaTurno {
         Turno turno = turnoRepository.findByIdForUpdate(turnoId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("Turno", turnoId));
 
+        Long profesionalIdTurno = turno.getDiaAgenda().getMesAgenda().getAgendaAnual().getProfesional().getId();
+        if (profesionalId != null && !profesionalIdTurno.equals(profesionalId)) {
+            throw new TurnoNoPerteneceProfesionalException(turnoId, profesionalId);
+        }
+
         gestorCambioEstado.registrarCambio(
                 AmbitoEstado.TURNO, turnoId, PoliticaTransicionesTurno.DADO_DE_BAJA,
                 usuario, observacion, motivo);
 
-        Long profesionalId = turno.getDiaAgenda().getMesAgenda().getAgendaAnual().getProfesional().getId();
         registradorAuditoria.registrar(
                 "TURNO", "Turno", turnoId, OperacionAuditoria.STATE_CHANGE,
-                usuario, profesionalId, "TURNO_DADO_DE_BAJA: " + observacion);
+                usuario, profesionalIdTurno, "TURNO_DADO_DE_BAJA: " + observacion);
 
         registradorNotificacion.registrarSiCorresponde(
                 turno.getCliente(), turno, TipoNotificacion.BAJA_TURNO,
                 "Su turno del " + turno.getDiaAgenda().getFecha()
                         + " ha sido dado de baja. Motivo: " + motivo.getMotivo());
         return turno;
+    }
+
+    @Transactional
+    public Turno ejecutar(Long turnoId, MotivoBajaTurno motivo,
+                          String observacion, String usuario) {
+        return ejecutar(null, turnoId, motivo, observacion, usuario);
     }
 }

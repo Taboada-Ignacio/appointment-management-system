@@ -9,5 +9,7 @@ import java.util.List;
 @Repository
 public interface TurnoHistorialRepository extends JpaRepository<TurnoHistorial, Long> {
     List<TurnoHistorial> findByTurnoIdOrderByFechaEventoAsc(Long turnoId);
+
+    void deleteByTurnoId(Long turnoId);
 }
 

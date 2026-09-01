@@ -20,6 +20,18 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
     @Query("SELECT t FROM Turno t WHERE t.id = :id")
     Optional<Turno> findByIdForUpdate(@Param("id") Long id);
 
+    @Query("""
+            SELECT t FROM Turno t
+            LEFT JOIN FETCH t.diaAgenda d
+            LEFT JOIN FETCH d.mesAgenda m
+            LEFT JOIN FETCH m.agendaAnual a
+            LEFT JOIN FETCH a.profesional p
+            LEFT JOIN FETCH t.cliente c
+            LEFT JOIN FETCH t.tipoAtencion ta
+            WHERE t.id = :id
+            """)
+    Optional<Turno> findByIdConRelaciones(@Param("id") Long id);
+
     List<Turno> findByDiaAgendaId(Long diaAgendaId);
     List<Turno> findByClienteId(Long clienteId);
 

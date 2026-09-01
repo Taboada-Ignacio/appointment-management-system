@@ -22,13 +22,16 @@ public class ConfigurarDiaAgenda {
     private final DiaAgendaRepository diaAgendaRepository;
     private final BrechaHorariaRepository brechaHorariaRepository;
     private final RegistradorAuditoria registradorAuditoria;
+    private final ProcesarBajasTurnosPorCambioAgenda procesarBajasTurnos;
 
     public ConfigurarDiaAgenda(DiaAgendaRepository diaAgendaRepository,
                                 BrechaHorariaRepository brechaHorariaRepository,
-                                RegistradorAuditoria registradorAuditoria) {
+                                RegistradorAuditoria registradorAuditoria,
+                                ProcesarBajasTurnosPorCambioAgenda procesarBajasTurnos) {
         this.diaAgendaRepository = diaAgendaRepository;
         this.brechaHorariaRepository = brechaHorariaRepository;
         this.registradorAuditoria = registradorAuditoria;
+        this.procesarBajasTurnos = procesarBajasTurnos;
     }
 
     public static class BrechaInput {
@@ -83,6 +86,9 @@ public class ConfigurarDiaAgenda {
         registradorAuditoria.registrar("AGENDA", "DiaAgenda", diaAgendaId,
                 OperacionAuditoria.UPDATE, usuario, idProf,
                 "Día configurado con " + nuevas.size() + " brechas horarias");
+
+        procesarBajasTurnos.ejecutar(
+                diaAgenda, "nueva configuración horaria del día " + diaAgenda.getFecha(), usuario);
 
         return nuevas;
     }

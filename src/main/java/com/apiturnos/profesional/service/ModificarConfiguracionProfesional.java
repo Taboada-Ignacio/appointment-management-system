@@ -7,6 +7,7 @@ import com.apiturnos.profesional.model.Profesional;
 import com.apiturnos.profesional.repository.ConfiguracionRepository;
 import com.apiturnos.profesional.repository.ProfesionalRepository;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
+import com.apiturnos.shared.exception.EstadoInvalidoException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,14 @@ public class ModificarConfiguracionProfesional {
     public Configuracion ejecutar(Long profesionalId, Integer cantidadMaxTurnos,
                                    Integer duracionAproximada, Boolean agendaSoloManejadaPorProfesional,
                                    String usuario) {
+        return ejecutar(profesionalId, cantidadMaxTurnos, duracionAproximada,
+                agendaSoloManejadaPorProfesional, null, usuario);
+    }
+
+    @Transactional
+    public Configuracion ejecutar(Long profesionalId, Integer cantidadMaxTurnos,
+                                   Integer duracionAproximada, Boolean agendaSoloManejadaPorProfesional,
+                                   Integer umbralCancelacionHoras, String usuario) {
         Profesional profesional = profesionalRepository.findById(profesionalId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("Profesional", profesionalId));
 
@@ -48,13 +57,20 @@ public class ModificarConfiguracionProfesional {
         if (agendaSoloManejadaPorProfesional != null) {
             config.setAgendaSoloManejadaPorProfesional(agendaSoloManejadaPorProfesional);
         }
+        if (umbralCancelacionHoras != null) {
+            if (umbralCancelacionHoras < 0) {
+                throw new EstadoInvalidoException("El umbral de cancelación no puede ser negativo");
+            }
+            config.setUmbralCancelacionHoras(umbralCancelacionHoras);
+        }
 
         config = configuracionRepository.save(config);
 
         registradorAuditoria.registrar("PROFESIONAL", "Configuracion", config.getId(),
                 OperacionAuditoria.UPDATE, usuario, profesionalId,
                 "Configuración actualizada: maxTurnos=" + config.getCantidadMaxTurnosALaVez() +
-                ", duracion=" + config.getDuracionAproximadaPorTurno());
+                ", duracion=" + config.getDuracionAproximadaPorTurno() +
+                ", umbralCancelacionHoras=" + config.getUmbralCancelacionHoras());
 
         return config;
     }

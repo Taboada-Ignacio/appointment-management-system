@@ -11,6 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.Min;
 import java.util.Objects;
 
 @Entity
@@ -33,6 +34,10 @@ public class Configuracion extends AuditableEntity {
 
     @Column(name = "agenda_solo_manejada_por_profesional", nullable = false)
     private Boolean agendaSoloManejadaPorProfesional = false;
+
+    @Column(name = "umbral_cancelacion_horas", nullable = false)
+    @Min(0)
+    private Integer umbralCancelacionHoras = 24;
 
     public Long getId() {
         return id;
@@ -72,6 +77,14 @@ public class Configuracion extends AuditableEntity {
 
     public void setAgendaSoloManejadaPorProfesional(Boolean agendaSoloManejadaPorProfesional) {
         this.agendaSoloManejadaPorProfesional = agendaSoloManejadaPorProfesional;
+    }
+
+    public Integer getUmbralCancelacionHoras() {
+        return umbralCancelacionHoras;
+    }
+
+    public void setUmbralCancelacionHoras(Integer umbralCancelacionHoras) {
+        this.umbralCancelacionHoras = umbralCancelacionHoras;
     }
 
     @Override

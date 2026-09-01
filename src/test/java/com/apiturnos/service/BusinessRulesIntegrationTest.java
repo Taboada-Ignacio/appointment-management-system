@@ -34,15 +34,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -53,6 +58,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Testcontainers
+@Import(BusinessRulesIntegrationTest.ClockTestConfig.class)
 class BusinessRulesIntegrationTest {
 
     @Container
@@ -124,10 +130,10 @@ class BusinessRulesIntegrationTest {
     private RegistrarAusencia registrarAusencia;
     @Autowired
     private ModificarConfiguracionProfesional modificarConfiguracionProfesional;
-
     private Profesional profesional1;
     private Profesional profesional2;
     private DiaAgenda diaAgenda1;
+    private DiaAgenda diaAgendaFutura;
 
     @BeforeEach
     void setUp() {
@@ -161,9 +167,13 @@ class BusinessRulesIntegrationTest {
         MesAgenda mes8 = mesAgendaRepository.findByAgendaAnualIdAndNroMes(agenda.getId(), 8).orElseThrow();
         List<DiaAgenda> dias = configurarMesAgenda.ejecutar(mes8.getId());
         diaAgenda1 = dias.stream().filter(d -> d.getFecha().getDayOfMonth() == 15).findFirst().orElseThrow();
+        diaAgendaFutura = dias.stream().filter(d -> d.getFecha().getDayOfMonth() == 16).findFirst().orElseThrow();
 
         // Brecha horaria: 09:00 a 13:00
         configurarDiaAgenda.ejecutar(diaAgenda1.getId(), List.of(
+                new ConfigurarDiaAgenda.BrechaInput(LocalTime.of(9, 0), LocalTime.of(13, 0))
+        ), "admin");
+        configurarDiaAgenda.ejecutar(diaAgendaFutura.getId(), List.of(
                 new ConfigurarDiaAgenda.BrechaInput(LocalTime.of(9, 0), LocalTime.of(13, 0))
         ), "admin");
     }
@@ -421,11 +431,11 @@ class BusinessRulesIntegrationTest {
                 profesional1.getId(), "Patricia", "Navarro",
                 TipoDocumento.DNI, "39000111", "patricia@test.com", "+5491100012", false, "admin");
 
-        Instant inicio = Instant.parse("2026-08-15T10:00:00Z");
-        Instant fin = Instant.parse("2026-08-15T10:30:00Z");
+        Instant inicio = Instant.parse("2026-08-16T10:00:00Z");
+        Instant fin = Instant.parse("2026-08-16T10:30:00Z");
 
         CrearTurno.Resultado r = crearTurno.ejecutar(
-                diaAgenda1.getId(), cliente.getId(), inicio, fin,
+                diaAgendaFutura.getId(), cliente.getId(), inicio, fin,
                 OrigenTurno.PROFESIONAL, "Consulta", "admin");
 
         cancelarTurno.ejecutar(r.getTurno().getId(), "Imprevisto personal", "admin");
@@ -540,8 +550,8 @@ class BusinessRulesIntegrationTest {
                 profesional1.getId(), "Nora", "Diaz",
                 TipoDocumento.DNI, "43444555", "nora@test.com", "+5491100016", false, "admin");
         Long turnoId = crearTurno.ejecutar(
-                diaAgenda1.getId(), cliente.getId(),
-                Instant.parse("2026-08-15T09:00:00Z"), Instant.parse("2026-08-15T09:30:00Z"),
+                diaAgendaFutura.getId(), cliente.getId(),
+                Instant.parse("2026-08-16T09:00:00Z"), Instant.parse("2026-08-16T09:30:00Z"),
                 OrigenTurno.PROFESIONAL, "Concurrente", "admin").getTurno().getId();
 
         CountDownLatch inicioSimultaneo = new CountDownLatch(1);
@@ -595,6 +605,17 @@ class BusinessRulesIntegrationTest {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(ex);
+        }
+    }
+
+    @TestConfiguration
+    static class ClockTestConfig {
+        @Bean
+        @Primary
+        Clock fixedClock() {
+            return Clock.fixed(
+                    Instant.parse("2026-08-15T12:00:00Z"),
+                    ZoneId.of("America/Argentina/Buenos_Aires"));
         }
     }
 }

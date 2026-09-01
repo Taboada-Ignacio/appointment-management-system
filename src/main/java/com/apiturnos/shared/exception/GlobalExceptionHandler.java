@@ -10,6 +10,10 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import jakarta.persistence.OptimisticLockException;
+import jakarta.persistence.PessimisticLockException;
+import org.springframework.dao.ConcurrencyFailureException;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,7 +35,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
-    @ExceptionHandler({ClienteNoPerteneceProfesionalException.class, TipoAtencionNoPerteneceProfesionalException.class})
+    @ExceptionHandler({
+            ClienteNoPerteneceProfesionalException.class,
+            TipoAtencionNoPerteneceProfesionalException.class,
+            TurnoNoPerteneceProfesionalException.class
+    })
     public ResponseEntity<ErrorResponseDto> handleNoPerteneceProfesional(
             NegocioException ex, HttpServletRequest request) {
         log.warn("Acceso no autorizado en {}: {}", request.getRequestURI(), ex.getMessage());
@@ -44,9 +52,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
-    @ExceptionHandler({ClienteDuplicadoException.class, AgendaAnualDuplicadaException.class})
-    public ResponseEntity<ErrorResponseDto> handleDuplicados(
-            NegocioException ex, HttpServletRequest request) {
+    @ExceptionHandler({
+            ClienteDuplicadoException.class,
+            AgendaAnualDuplicadaException.class,
+            ConcurrencyFailureException.class,
+            OptimisticLockException.class,
+            PessimisticLockException.class
+    })
+    public ResponseEntity<ErrorResponseDto> handleConflictosYDuplicados(
+            Exception ex, HttpServletRequest request) {
         log.warn("Conflicto/Duplicado en {}: {}", request.getRequestURI(), ex.getMessage());
         ErrorResponseDto error = new ErrorResponseDto(
                 HttpStatus.CONFLICT.value(),

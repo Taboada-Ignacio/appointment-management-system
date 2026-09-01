@@ -14,6 +14,8 @@ import java.util.Optional;
 @Repository
 public interface CambioEstadoRepository extends JpaRepository<CambioEstado, Long> {
 
+    void deleteByAmbitoAndEntidadId(AmbitoEstado ambito, Long entidadId);
+
     @EntityGraph(attributePaths = {"estado", "motivoBajaTurno"})
     Optional<CambioEstado> findFirstByAmbitoAndEntidadIdAndFechaHoraFinIsNullOrderByIdDesc(AmbitoEstado ambito, Long entidadId);
 
