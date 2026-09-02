@@ -1,13 +1,38 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import path from 'path';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('react-day-picker') || id.includes('date-fns')) {
+            return 'calendar';
+          }
+
+          if (id.includes('node_modules/radix-ui') || id.includes('node_modules/@radix-ui')) {
+            return 'ui-primitives';
+          }
+
+          if (id.includes('react-router') || id.includes('@tanstack')) {
+            return 'app-runtime';
+          }
+
+          if (id.includes('node_modules/react') || id.includes('node_modules/scheduler')) {
+            return 'react-vendor';
+          }
+
+          return undefined;
+        },
+      },
     },
   },
   test: {
@@ -15,5 +40,13 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.js',
   },
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
 });
-

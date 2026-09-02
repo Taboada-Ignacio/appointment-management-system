@@ -1,4 +1,5 @@
-import { Calendar, Clock, Users, Bell } from 'lucide-react';
+import { Calendar, Clock, Users } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function HomePage() {
   const modules = [
@@ -10,33 +11,35 @@ export function HomePage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-neutral-200 bg-white p-6 shadow-xs">
-        <h2 className="text-xl font-bold text-neutral-900">
+      <Card className="shadow-none">
+        <CardHeader>
+        <CardTitle>
           Bienvenido al Frontend de Gestión de Turnos
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
+        </CardTitle>
+        <CardDescription>
           Estructura base inicial lista para el desarrollo de módulos.
-        </p>
-      </div>
+        </CardDescription>
+        </CardHeader>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {modules.map((mod) => {
           const Icon = mod.icon;
           return (
-            <div
+            <Card
               key={mod.name}
-              className="rounded-lg border border-neutral-200 bg-white p-5 shadow-xs transition-shadow hover:shadow-sm"
+              className="shadow-none transition hover:border-ring/40 hover:shadow-sm"
             >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <CardContent className="flex items-center gap-3 p-5">
+                <div className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground">
                   <Icon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-neutral-900">{mod.name}</h3>
-                  <p className="text-xs text-neutral-500">{mod.description}</p>
+                  <h3 className="font-heading font-semibold">{mod.name}</h3>
+                  <p className="text-xs text-muted-foreground">{mod.description}</p>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           );
         })}
       </div>

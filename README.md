@@ -85,13 +85,46 @@ This project starts as an independent appointment management system designed wit
 
 ## Quick Start
 
-### 1. Backend with Docker Compose
+### 🚀 Levantar todo el proyecto (Scripts automáticos)
+
+- **Windows (PowerShell):**
+  ```powershell
+  .\start.ps1
+  ```
+- **Windows (Doble clic / CMD):**
+  Ejecutar `start.bat`
+
+- **Linux / macOS / Git Bash:**
+  ```bash
+  chmod +x start.sh stop.sh
+  ./start.sh
+  ```
+
+### 🛑 Detener todo el proyecto
+
+- **Windows (PowerShell):**
+  ```powershell
+  .\stop.ps1
+  ```
+- **Windows (Doble clic / CMD):**
+  Ejecutar `stop.bat`
+
+- **Linux / macOS / Git Bash:**
+  ```bash
+  ./stop.sh
+  ```
+
+---
+
+### Manual Start
+
+#### 1. Backend with Docker Compose
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-### 2. Frontend Development
+#### 2. Frontend Development
 ```bash
 cd frontend
 cp .env.example .env

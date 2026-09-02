@@ -35,17 +35,20 @@ public class DiaAgendaController {
     private final ConfigurarDiaAgenda configurarDiaAgenda;
     private final GestorCambioEstado gestorCambioEstado;
     private final ObtenerDiasSeleccionables obtenerDiasSeleccionables;
+    private final com.apiturnos.agenda.service.ActivarInactivarDiaAgenda activarInactivarDiaAgenda;
 
     public DiaAgendaController(DiaAgendaRepository diaAgendaRepository,
                                BrechaHorariaRepository brechaHorariaRepository,
                                ConfigurarDiaAgenda configurarDiaAgenda,
                                GestorCambioEstado gestorCambioEstado,
-                               ObtenerDiasSeleccionables obtenerDiasSeleccionables) {
+                               ObtenerDiasSeleccionables obtenerDiasSeleccionables,
+                               com.apiturnos.agenda.service.ActivarInactivarDiaAgenda activarInactivarDiaAgenda) {
         this.diaAgendaRepository = diaAgendaRepository;
         this.brechaHorariaRepository = brechaHorariaRepository;
         this.configurarDiaAgenda = configurarDiaAgenda;
         this.gestorCambioEstado = gestorCambioEstado;
         this.obtenerDiasSeleccionables = obtenerDiasSeleccionables;
+        this.activarInactivarDiaAgenda = activarInactivarDiaAgenda;
     }
 
     @GetMapping("/seleccionables")
@@ -102,6 +105,26 @@ public class DiaAgendaController {
                 .toList();
 
         return ResponseEntity.ok(new DiaAgendaDetalleResponseDto(dia, estadoDia, brechasDto));
+    }
+
+    @PostMapping("/{diaAgendaId}/activar")
+    @Transactional
+    public ResponseEntity<Void> activar(
+            @PathVariable Long profesionalId,
+            @PathVariable Long diaAgendaId,
+            @RequestHeader(value = "X-Usuario", defaultValue = "admin") String usuario) {
+        activarInactivarDiaAgenda.activar(profesionalId, diaAgendaId, usuario);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{diaAgendaId}/inactivar")
+    @Transactional
+    public ResponseEntity<Void> inactivar(
+            @PathVariable Long profesionalId,
+            @PathVariable Long diaAgendaId,
+            @RequestHeader(value = "X-Usuario", defaultValue = "admin") String usuario) {
+        activarInactivarDiaAgenda.inactivar(profesionalId, diaAgendaId, usuario);
+        return ResponseEntity.ok().build();
     }
 }
 

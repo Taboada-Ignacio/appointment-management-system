@@ -1,16 +1,17 @@
 import { Outlet } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
 
 export function RootLayout() {
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b border-neutral-200 bg-white px-6 py-4 shadow-xs">
+      <header className="border-b bg-card px-6 py-4 shadow-xs">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <h1 className="text-lg font-semibold text-neutral-900">
+          <h1 className="font-heading text-lg font-semibold tracking-tight">
             Sistema de Gestión de Turnos
           </h1>
-          <span className="text-xs font-medium rounded-full bg-blue-50 text-blue-700 px-2.5 py-1 border border-blue-200">
+          <Badge variant="secondary">
             API Turnos Frontend
-          </span>
+          </Badge>
         </div>
       </header>
 
@@ -18,7 +19,7 @@ export function RootLayout() {
         <Outlet />
       </main>
 
-      <footer className="border-t border-neutral-200 bg-white px-6 py-3 text-center text-xs text-neutral-500">
+      <footer className="border-t bg-card px-6 py-3 text-center text-xs text-muted-foreground">
         &copy; {new Date().getFullYear()} Sistema de Gestión de Turnos. Esqueleto Base.
       </footer>
     </div>

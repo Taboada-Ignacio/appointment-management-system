@@ -56,6 +56,8 @@ class DiaAgendaControllerUnitTest {
     private GestorCambioEstado gestorCambioEstado;
     @Mock
     private com.apiturnos.agenda.service.ObtenerDiasSeleccionables obtenerDiasSeleccionables;
+    @Mock
+    private com.apiturnos.agenda.service.ActivarInactivarDiaAgenda activarInactivarDiaAgenda;
 
     @InjectMocks
     private DiaAgendaController diaAgendaController;
@@ -118,5 +120,25 @@ class DiaAgendaControllerUnitTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    @DisplayName("POST /api/profesionales/{profesionalId}/dias-agenda/{diaAgendaId}/activar - 200 OK")
+    void testActivarDia200() throws Exception {
+        org.mockito.Mockito.doNothing().when(activarInactivarDiaAgenda).activar(eq(1L), eq(50L), any());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/profesionales/1/dias-agenda/50/activar")
+                        .header("X-Usuario", "admin"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("POST /api/profesionales/{profesionalId}/dias-agenda/{diaAgendaId}/inactivar - 200 OK")
+    void testInactivarDia200() throws Exception {
+        org.mockito.Mockito.doNothing().when(activarInactivarDiaAgenda).inactivar(eq(1L), eq(50L), any());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/profesionales/1/dias-agenda/50/inactivar")
+                        .header("X-Usuario", "admin"))
+                .andExpect(status().isOk());
     }
 }

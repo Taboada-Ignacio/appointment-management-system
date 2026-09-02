@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -53,6 +54,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({
+            ProfesionalDuplicadoException.class,
+            ProfesionalConDependenciasException.class,
             ClienteDuplicadoException.class,
             AgendaAnualDuplicadaException.class,
             ConcurrencyFailureException.class,
@@ -108,6 +111,19 @@ public class GlobalExceptionHandler {
                 "Uno o más campos contienen valores inválidos",
                 request.getRequestURI(),
                 errors
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponseDto> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex, HttpServletRequest request) {
+        log.warn("Cuerpo JSON inválido en {}: {}", request.getRequestURI(), ex.getMessage());
+        ErrorResponseDto error = new ErrorResponseDto(
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "El cuerpo de la solicitud no contiene un JSON válido",
+                request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
