@@ -85,7 +85,14 @@ This project starts as an independent appointment management system designed wit
 
 ## Quick Start
 
-### 🚀 Levantar todo el proyecto (Scripts automáticos)
+### 🚀 Levantar todo el proyecto (Automatizado con Docker)
+
+Levanta PostgreSQL 17, Backend Spring Boot, Swagger UI y Frontend React en un solo paso:
+
+- **Con Docker Compose directamente:**
+  ```bash
+  docker compose up --build -d
+  ```
 
 - **Windows (PowerShell):**
   ```powershell
@@ -100,7 +107,14 @@ This project starts as an independent appointment management system designed wit
   ./start.sh
   ```
 
+> **Nota:** Los scripts automáticos esperan a que la base de datos y la API estén saludables y abren Swagger UI y el Frontend automáticamente en tu navegador.
+
 ### 🛑 Detener todo el proyecto
+
+- **Con Docker Compose directamente:**
+  ```bash
+  docker compose down
+  ```
 
 - **Windows (PowerShell):**
   ```powershell
@@ -116,26 +130,12 @@ This project starts as an independent appointment management system designed wit
 
 ---
 
-### Manual Start
-
-#### 1. Backend with Docker Compose
-```bash
-cp .env.example .env
-docker compose up --build
-```
-
-#### 2. Frontend Development
-```bash
-cd frontend
-cp .env.example .env
-npm install
-npm run dev
-```
-
----
-
 ## Endpoints
 
-- **Swagger UI:** [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- **Frontend Web:** [http://localhost:5173](http://localhost:5173)
+- **Swagger UI (Backend):** [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- **Swagger UI (vía Frontend Proxy):** [http://localhost:5173/swagger-ui.html](http://localhost:5173/swagger-ui.html)
 - **OpenAPI Schema:** [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
 - **Actuator Health:** [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
+- **PostgreSQL:** `localhost:5432` (`turnos_db`)
+

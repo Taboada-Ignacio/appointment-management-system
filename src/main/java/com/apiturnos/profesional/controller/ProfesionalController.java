@@ -7,6 +7,7 @@ import com.apiturnos.profesional.dto.ProfesionalResponseDto;
 import com.apiturnos.profesional.model.Configuracion;
 import com.apiturnos.profesional.model.Profesional;
 import com.apiturnos.profesional.service.EditarProfesional;
+import com.apiturnos.profesional.service.EliminarConfiguracionProfesional;
 import com.apiturnos.profesional.service.EliminarProfesional;
 import com.apiturnos.profesional.service.ListarProfesionales;
 import com.apiturnos.profesional.service.ModificarConfiguracionProfesional;
@@ -50,6 +51,7 @@ public class ProfesionalController {
     private final ObtenerConfiguracionProfesional obtenerConfiguracionProfesional;
     private final ModificarConfiguracionProfesional modificarConfiguracionProfesional;
     private final RegistrarConfiguracionProfesional registrarConfiguracionProfesional;
+    private final EliminarConfiguracionProfesional eliminarConfiguracionProfesional;
 
     public ProfesionalController(RegistrarProfesional registrarProfesional,
                                  ObtenerProfesional obtenerProfesional,
@@ -58,7 +60,8 @@ public class ProfesionalController {
                                  EliminarProfesional eliminarProfesional,
                                  ObtenerConfiguracionProfesional obtenerConfiguracionProfesional,
                                  ModificarConfiguracionProfesional modificarConfiguracionProfesional,
-                                 RegistrarConfiguracionProfesional registrarConfiguracionProfesional) {
+                                 RegistrarConfiguracionProfesional registrarConfiguracionProfesional,
+                                 EliminarConfiguracionProfesional eliminarConfiguracionProfesional) {
         this.registrarProfesional = registrarProfesional;
         this.obtenerProfesional = obtenerProfesional;
         this.listarProfesionales = listarProfesionales;
@@ -67,6 +70,7 @@ public class ProfesionalController {
         this.obtenerConfiguracionProfesional = obtenerConfiguracionProfesional;
         this.modificarConfiguracionProfesional = modificarConfiguracionProfesional;
         this.registrarConfiguracionProfesional = registrarConfiguracionProfesional;
+        this.eliminarConfiguracionProfesional = eliminarConfiguracionProfesional;
     }
 
     @PostMapping
@@ -176,5 +180,15 @@ public class ProfesionalController {
                 request.getUmbralCancelacionHoras(),
                 usuario);
         return ResponseEntity.ok(new ConfiguracionResponseDto(configuracion));
+    }
+
+    @DeleteMapping("/{id}/configuracion")
+    @Transactional
+    @Operation(summary = "Eliminar la configuración del profesional (pruebas)", description = "Elimina la configuración de un profesional por su ID. Uso exclusivo para testing.")
+    public ResponseEntity<Void> eliminarConfiguracion(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Usuario", defaultValue = "admin") String usuario) {
+        eliminarConfiguracionProfesional.ejecutar(id, usuario);
+        return ResponseEntity.noContent().build();
     }
 }

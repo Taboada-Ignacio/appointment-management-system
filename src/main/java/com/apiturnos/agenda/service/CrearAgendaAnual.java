@@ -6,12 +6,17 @@ import com.apiturnos.agenda.repository.AgendaAnualRepository;
 import com.apiturnos.agenda.repository.MesAgendaRepository;
 import com.apiturnos.auditoria.model.OperacionAuditoria;
 import com.apiturnos.auditoria.service.RegistradorAuditoria;
+import com.apiturnos.estado.model.AmbitoEstado;
+import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.profesional.model.Profesional;
 import com.apiturnos.profesional.repository.ProfesionalRepository;
 import com.apiturnos.shared.exception.AgendaAnualDuplicadaException;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
+import java.time.YearMonth;
 
 @Service
 public class CrearAgendaAnual {
@@ -20,15 +25,24 @@ public class CrearAgendaAnual {
     private final MesAgendaRepository mesAgendaRepository;
     private final ProfesionalRepository profesionalRepository;
     private final RegistradorAuditoria registradorAuditoria;
+    private final ConfigurarMesAgenda configurarMesAgenda;
+    private final GestorCambioEstado gestorCambioEstado;
+    private final Clock clock;
 
     public CrearAgendaAnual(AgendaAnualRepository agendaAnualRepository,
                             MesAgendaRepository mesAgendaRepository,
                             ProfesionalRepository profesionalRepository,
-                            RegistradorAuditoria registradorAuditoria) {
+                            RegistradorAuditoria registradorAuditoria,
+                            ConfigurarMesAgenda configurarMesAgenda,
+                            GestorCambioEstado gestorCambioEstado,
+                            Clock clock) {
         this.agendaAnualRepository = agendaAnualRepository;
         this.mesAgendaRepository = mesAgendaRepository;
         this.profesionalRepository = profesionalRepository;
         this.registradorAuditoria = registradorAuditoria;
+        this.configurarMesAgenda = configurarMesAgenda;
+        this.gestorCambioEstado = gestorCambioEstado;
+        this.clock = clock;
     }
 
     @Transactional
@@ -45,12 +59,24 @@ public class CrearAgendaAnual {
         agenda.setAnio(anio);
         agenda = agendaAnualRepository.save(agenda);
 
+        YearMonth mesActual = YearMonth.now(clock);
+        YearMonth mesSiguiente = mesActual.plusMonths(1);
+
         for (int mes = 1; mes <= 12; mes++) {
             MesAgenda mesAgenda = new MesAgenda();
             mesAgenda.setAgendaAnual(agenda);
             mesAgenda.setNroMes(mes);
             mesAgenda.setRepetirConfiguracion(false);
-            mesAgendaRepository.save(mesAgenda);
+            mesAgenda = mesAgendaRepository.save(mesAgenda);
+
+            YearMonth mesCreado = YearMonth.of(anio, mes);
+            String estadoInicial = mesCreado.equals(mesActual) || mesCreado.equals(mesSiguiente)
+                    ? "ACTIVO"
+                    : "INACTIVO";
+            gestorCambioEstado.registrarCambioInicial(
+                    AmbitoEstado.MES_AGENDA, mesAgenda.getId(), estadoInicial, usuario,
+                    "Estado inicial al crear agenda anual");
+            configurarMesAgenda.ejecutar(mesAgenda.getId(), usuario);
         }
 
         registradorAuditoria.registrar("AGENDA", "AgendaAnual", agenda.getId(),

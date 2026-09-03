@@ -4,6 +4,7 @@ import com.apiturnos.estado.model.AmbitoEstado;
 import com.apiturnos.estado.model.CambioEstado;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -15,6 +16,11 @@ import java.util.Optional;
 public interface CambioEstadoRepository extends JpaRepository<CambioEstado, Long> {
 
     void deleteByAmbitoAndEntidadId(AmbitoEstado ambito, Long entidadId);
+
+    @Modifying
+    @Query("DELETE FROM CambioEstado ce WHERE ce.ambito = :ambito AND ce.entidadId IN :entidadIds")
+    void deleteByAmbitoAndEntidadIdIn(@Param("ambito") AmbitoEstado ambito, @Param("entidadIds") List<Long> entidadIds);
+
 
     @EntityGraph(attributePaths = {"estado", "motivoBajaTurno"})
     Optional<CambioEstado> findFirstByAmbitoAndEntidadIdAndFechaHoraFinIsNullOrderByIdDesc(AmbitoEstado ambito, Long entidadId);

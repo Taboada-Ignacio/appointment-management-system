@@ -3,6 +3,7 @@ package com.apiturnos.turno.repository;
 import com.apiturnos.turno.model.Turno;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -33,7 +34,18 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
     Optional<Turno> findByIdConRelaciones(@Param("id") Long id);
 
     List<Turno> findByDiaAgendaId(Long diaAgendaId);
+    List<Turno> findByDiaAgendaIdIn(List<Long> diaAgendaIds);
+
+    @Query("SELECT t.id FROM Turno t WHERE t.diaAgenda.id IN :diaAgendaIds")
+    List<Long> findIdsByDiaAgendaIdIn(@Param("diaAgendaIds") List<Long> diaAgendaIds);
+
     List<Turno> findByClienteId(Long clienteId);
+
+
+    @Modifying
+    @Query("DELETE FROM Turno t WHERE t.id IN :ids")
+    void deleteAllByIdIn(@Param("ids") List<Long> ids);
+
 
     @Query("""
             SELECT t FROM Turno t

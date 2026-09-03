@@ -3,6 +3,7 @@ package com.apiturnos.agenda.service;
 import com.apiturnos.agenda.model.DiaAgenda;
 import com.apiturnos.agenda.model.MesAgenda;
 import com.apiturnos.agenda.repository.BrechaHorariaRepository;
+import com.apiturnos.agenda.repository.AgendaAnualRepository;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.agenda.repository.MesAgendaRepository;
 import com.apiturnos.auditoria.model.OperacionAuditoria;
@@ -15,6 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.time.Clock;
+import java.time.YearMonth;
+import java.util.EnumMap;
+import java.time.DayOfWeek;
 
 @Service
 public class ActivarInactivarMesAgenda {
@@ -24,17 +29,26 @@ public class ActivarInactivarMesAgenda {
     private final BrechaHorariaRepository brechaHorariaRepository;
     private final GestorCambioEstado gestorCambioEstado;
     private final RegistradorAuditoria registradorAuditoria;
+    private final AgendaAnualRepository agendaAnualRepository;
+    private final ConfigurarMesModoSemana configurarMesModoSemana;
+    private final Clock clock;
 
     public ActivarInactivarMesAgenda(MesAgendaRepository mesAgendaRepository,
                                       DiaAgendaRepository diaAgendaRepository,
                                       BrechaHorariaRepository brechaHorariaRepository,
                                       GestorCambioEstado gestorCambioEstado,
-                                      RegistradorAuditoria registradorAuditoria) {
+                                      RegistradorAuditoria registradorAuditoria,
+                                      AgendaAnualRepository agendaAnualRepository,
+                                      ConfigurarMesModoSemana configurarMesModoSemana,
+                                      Clock clock) {
         this.mesAgendaRepository = mesAgendaRepository;
         this.diaAgendaRepository = diaAgendaRepository;
         this.brechaHorariaRepository = brechaHorariaRepository;
         this.gestorCambioEstado = gestorCambioEstado;
         this.registradorAuditoria = registradorAuditoria;
+        this.agendaAnualRepository = agendaAnualRepository;
+        this.configurarMesModoSemana = configurarMesModoSemana;
+        this.clock = clock;
     }
 
     @Transactional
@@ -47,6 +61,12 @@ public class ActivarInactivarMesAgenda {
         }
 
         String estadoActual = gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.MES_AGENDA, mesAgendaId);
+        if ("ACTIVO".equals(estadoActual)) {
+            return;
+        }
+
+        copiarConfiguracionMesActual(profesionalId, mes, usuario);
+
         if (estadoActual == null) {
             gestorCambioEstado.registrarCambioInicial(
                     AmbitoEstado.MES_AGENDA, mesAgendaId, "ACTIVO", usuario, "Mes activado");
@@ -79,6 +99,38 @@ public class ActivarInactivarMesAgenda {
     @Transactional
     public void activar(Long mesAgendaId, String usuario) {
         activar(null, mesAgendaId, usuario);
+    }
+
+    private void copiarConfiguracionMesActual(Long profesionalId, MesAgenda destino, String usuario) {
+        Long idProfesional = profesionalId != null
+                ? profesionalId
+                : destino.getAgendaAnual().getProfesional().getId();
+        YearMonth actual = YearMonth.now(clock);
+        agendaAnualRepository.findByProfesionalIdAndAnio(idProfesional, actual.getYear())
+                .flatMap(agenda -> mesAgendaRepository.findByAgendaAnualIdAndNroMes(
+                        agenda.getId(), actual.getMonthValue()))
+                .filter(origen -> !origen.getId().equals(destino.getId()))
+                .ifPresent(origen -> configurarMesModoSemana.ejecutar(
+                        idProfesional, destino.getId(), extraerPlantilla(origen), usuario));
+    }
+
+    private List<ConfigurarMesModoSemana.DiaSemanaTemplate> extraerPlantilla(MesAgenda origen) {
+        var brechasPorDia = new EnumMap<DayOfWeek, List<ConfigurarDiaAgenda.BrechaInput>>(DayOfWeek.class);
+        for (DiaAgenda dia : diaAgendaRepository.findByMesAgendaId(origen.getId())) {
+            if (brechasPorDia.containsKey(dia.getFecha().getDayOfWeek())) {
+                continue;
+            }
+            var brechas = brechaHorariaRepository.findByDiaAgendaId(dia.getId());
+            if (!brechas.isEmpty()) {
+                brechasPorDia.put(dia.getFecha().getDayOfWeek(), brechas.stream()
+                        .map(b -> new ConfigurarDiaAgenda.BrechaInput(
+                                b.getHoraInicioAtencion(), b.getHoraFinAtencion()))
+                        .toList());
+            }
+        }
+        return brechasPorDia.entrySet().stream()
+                .map(entry -> new ConfigurarMesModoSemana.DiaSemanaTemplate(entry.getKey(), entry.getValue()))
+                .toList();
     }
 
     @Transactional

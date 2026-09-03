@@ -5,9 +5,12 @@ import com.apiturnos.agenda.model.AgendaAnual;
 import com.apiturnos.agenda.model.DiaAgenda;
 import com.apiturnos.agenda.model.MesAgenda;
 import com.apiturnos.agenda.repository.AgendaAnualRepository;
+import com.apiturnos.agenda.repository.BrechaHorariaRepository;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.agenda.repository.MesAgendaRepository;
 import com.apiturnos.agenda.service.CrearAgendaAnual;
+import com.apiturnos.estado.model.AmbitoEstado;
+import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.profesional.model.Profesional;
 import com.apiturnos.profesional.repository.ProfesionalRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,9 +33,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -64,6 +70,12 @@ class AgendaApiIntegrationTest {
     private DiaAgendaRepository diaAgendaRepository;
 
     @Autowired
+    private BrechaHorariaRepository brechaHorariaRepository;
+
+    @Autowired
+    private GestorCambioEstado gestorCambioEstado;
+
+    @Autowired
     private CrearAgendaAnual crearAgendaAnual;
 
     private Profesional prof1;
@@ -91,18 +103,141 @@ class AgendaApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("1. POST /api/profesionales/{profesionalId}/agendas - Crea AgendaAnual y sus 12 meses")
+    @DisplayName("1. POST agendas crea meses y días con estados iniciales no nulos")
     void test1_CrearAgendaAnualExitosamente() throws Exception {
-        CrearAgendaAnualRequestDto request = new CrearAgendaAnualRequestDto(2028);
+        YearMonth actual = YearMonth.now();
+        CrearAgendaAnualRequestDto request = new CrearAgendaAnualRequestDto(actual.getYear());
 
-        mockMvc.perform(post("/api/profesionales/{profesionalId}/agendas", prof1.getId())
+        String agendaJson = mockMvc.perform(post("/api/profesionales/{profesionalId}/agendas", prof1.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.profesionalId").value(prof1.getId()))
-                .andExpect(jsonPath("$.anio").value(2028))
-                .andExpect(jsonPath("$.fechaCreacion").isNotEmpty());
+                .andExpect(jsonPath("$.anio").value(actual.getYear()))
+                .andExpect(jsonPath("$.fechaCreacion").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+
+        Long agendaId = objectMapper.readTree(agendaJson).get("id").asLong();
+        List<MesAgenda> meses = mesAgendaRepository.findByAgendaAnualId(agendaId);
+        assertThat(meses).hasSize(12);
+
+        MesAgenda mesActual = meses.stream()
+                .filter(mes -> mes.getNroMes() == actual.getMonthValue())
+                .findFirst().orElseThrow();
+        mockMvc.perform(get("/api/profesionales/{profesionalId}/meses-agenda/{mesAgendaId}",
+                        prof1.getId(), mesActual.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estadoActual").value("ACTIVO"))
+                .andExpect(jsonPath("$.dias", hasSize(actual.lengthOfMonth())))
+                .andExpect(jsonPath("$.dias[*].estadoActual",
+                        Matchers.everyItem(Matchers.is("ACTIVO"))));
+
+        List<String> estadosEsperados = new ArrayList<>();
+        YearMonth siguiente = actual.plusMonths(1);
+        for (int numeroMes = 1; numeroMes <= 12; numeroMes++) {
+            YearMonth mes = YearMonth.of(actual.getYear(), numeroMes);
+            estadosEsperados.add(mes.equals(actual) || mes.equals(siguiente) ? "ACTIVO" : "INACTIVO");
+        }
+        mockMvc.perform(get("/api/profesionales/{profesionalId}/agendas/{anio}/meses",
+                        prof1.getId(), actual.getYear()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].estadoActual",
+                        Matchers.contains(estadosEsperados.toArray())));
+
+        MesAgenda mesInactivo = meses.stream()
+                .filter(mes -> "INACTIVO".equals(estadosEsperados.get(mes.getNroMes() - 1)))
+                .findFirst().orElseThrow();
+        mockMvc.perform(get("/api/profesionales/{profesionalId}/meses-agenda/{mesAgendaId}",
+                        prof1.getId(), mesInactivo.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estadoActual").value("INACTIVO"))
+                .andExpect(jsonPath("$.dias[*].estadoActual",
+                        Matchers.everyItem(Matchers.is("INACTIVO"))));
+    }
+
+    @Test
+    @DisplayName("Inicialización atómica configura días laborables y la activación futura copia la semana actual")
+    void inicializacionAtomicaYCopiaAlActivar() throws Exception {
+        YearMonth actual = YearMonth.now();
+        String request = """
+                {
+                  "repetirAlMesSiguiente": true,
+                  "diasSemana": [
+                    {"diaSemana":"MONDAY","brechas":[{"horaInicio":"09:00","horaFin":"13:00"}]},
+                    {"diaSemana":"WEDNESDAY","brechas":[{"horaInicio":"14:00","horaFin":"18:00"}]}
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/profesionales/{profesionalId}/agendas/inicializacion", prof1.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.completado").value(true))
+                .andExpect(jsonPath("$.diasLaborablesPorSemana").value(2))
+                .andExpect(jsonPath("$.mesesConfigurados", hasSize(2)))
+                .andExpect(jsonPath("$.mesesConfigurados[*].estado",
+                        Matchers.everyItem(Matchers.is("ACTIVO"))));
+
+        AgendaAnual agenda = agendaAnualRepository
+                .findByProfesionalIdAndAnio(prof1.getId(), actual.getYear()).orElseThrow();
+        MesAgenda mesActual = mesAgendaRepository
+                .findByAgendaAnualIdAndNroMes(agenda.getId(), actual.getMonthValue()).orElseThrow();
+        List<DiaAgenda> diasActuales = diaAgendaRepository.findByMesAgendaId(mesActual.getId());
+        for (DiaAgenda dia : diasActuales) {
+            boolean laborable = dia.getFecha().getDayOfWeek() == DayOfWeek.MONDAY
+                    || dia.getFecha().getDayOfWeek() == DayOfWeek.WEDNESDAY;
+            assertThat(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.DIA_AGENDA, dia.getId()))
+                    .isEqualTo(laborable ? "ACTIVO" : "INACTIVO");
+        }
+
+        MesAgenda mesInactivo = mesAgendaRepository.findByAgendaAnualId(agenda.getId()).stream()
+                .filter(mes -> "INACTIVO".equals(gestorCambioEstado.obtenerNombreEstadoActual(
+                        AmbitoEstado.MES_AGENDA, mes.getId())))
+                .findFirst().orElseThrow();
+        mockMvc.perform(post("/api/profesionales/{profesionalId}/meses-agenda/{mesAgendaId}/activar",
+                        prof1.getId(), mesInactivo.getId()))
+                .andExpect(status().isOk());
+
+        List<DiaAgenda> diasCopiados = diaAgendaRepository.findByMesAgendaId(mesInactivo.getId());
+        DiaAgenda lunes = diasCopiados.stream()
+                .filter(dia -> dia.getFecha().getDayOfWeek() == DayOfWeek.MONDAY)
+                .findFirst().orElseThrow();
+        DiaAgenda martes = diasCopiados.stream()
+                .filter(dia -> dia.getFecha().getDayOfWeek() == DayOfWeek.TUESDAY)
+                .findFirst().orElseThrow();
+        assertThat(brechaHorariaRepository.findByDiaAgendaId(lunes.getId())).hasSize(1);
+        assertThat(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.DIA_AGENDA, lunes.getId()))
+                .isEqualTo("ACTIVO");
+        assertThat(brechaHorariaRepository.findByDiaAgendaId(martes.getId())).isEmpty();
+        assertThat(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.DIA_AGENDA, martes.getId()))
+                .isEqualTo("INACTIVO");
+    }
+
+    @Test
+    @DisplayName("Inicialización rechaza franjas superpuestas y revierte la agenda completa")
+    void inicializacionInvalidaHaceRollback() throws Exception {
+        int anioActual = YearMonth.now().getYear();
+        String request = """
+                {
+                  "repetirAlMesSiguiente": true,
+                  "diasSemana": [
+                    {"diaSemana":"MONDAY","brechas":[
+                      {"horaInicio":"09:00","horaFin":"13:00"},
+                      {"horaInicio":"12:00","horaFin":"16:00"}
+                    ]}
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/profesionales/{profesionalId}/agendas/inicializacion", prof1.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isBadRequest());
+
+        assertThat(agendaAnualRepository.findByProfesionalIdAndAnio(prof1.getId(), anioActual))
+                .isEmpty();
     }
 
     @Test

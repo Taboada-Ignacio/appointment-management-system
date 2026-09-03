@@ -32,12 +32,31 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
       - "${SERVER_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
       postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend-turnos
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      api-turnos:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
   postgres_data:
     driver: local
+
 

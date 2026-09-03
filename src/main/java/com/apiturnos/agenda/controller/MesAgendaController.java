@@ -83,7 +83,8 @@ public class MesAgendaController {
     @Transactional
     public ResponseEntity<List<DiaAgendaResumenResponseDto>> generarDias(
             @PathVariable Long profesionalId,
-            @PathVariable Long mesAgendaId) {
+            @PathVariable Long mesAgendaId,
+            @RequestHeader(value = "X-Usuario", defaultValue = "admin") String usuario) {
         MesAgenda mes = mesAgendaRepository.findById(mesAgendaId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("MesAgenda", mesAgendaId));
 
@@ -91,7 +92,7 @@ public class MesAgendaController {
             throw new ClienteNoPerteneceProfesionalException(mesAgendaId, profesionalId);
         }
 
-        configurarMesAgenda.ejecutar(mesAgendaId);
+        configurarMesAgenda.ejecutar(mesAgendaId, usuario);
         return ResponseEntity.ok(construirDetalleDto(mes).getDias());
     }
 

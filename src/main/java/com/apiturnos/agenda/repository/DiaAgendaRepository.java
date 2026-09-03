@@ -2,6 +2,7 @@ package com.apiturnos.agenda.repository;
 
 import com.apiturnos.agenda.model.DiaAgenda;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -13,8 +14,18 @@ import java.util.Optional;
 @Repository
 public interface DiaAgendaRepository extends JpaRepository<DiaAgenda, Long> {
     List<DiaAgenda> findByMesAgendaId(Long mesAgendaId);
+    List<DiaAgenda> findByMesAgendaIdIn(List<Long> mesAgendaIds);
+
+    @Query("SELECT d.id FROM DiaAgenda d WHERE d.mesAgenda.id IN :mesAgendaIds")
+    List<Long> findIdsByMesAgendaIdIn(@Param("mesAgendaIds") List<Long> mesAgendaIds);
+
     Optional<DiaAgenda> findByMesAgendaIdAndFecha(Long mesAgendaId, LocalDate fecha);
+
     List<DiaAgenda> findByFechaBetween(LocalDate desde, LocalDate hasta);
+
+    @Modifying
+    @Query("DELETE FROM DiaAgenda d WHERE d.id IN :ids")
+    void deleteAllByIdIn(@Param("ids") List<Long> ids);
 
     @Query("SELECT d FROM DiaAgenda d JOIN FETCH d.mesAgenda m JOIN FETCH m.agendaAnual a JOIN FETCH a.profesional p WHERE d.id = :id")
     Optional<DiaAgenda> findByIdWithMesAndProfesional(@Param("id") Long id);
@@ -38,3 +49,4 @@ public interface DiaAgendaRepository extends JpaRepository<DiaAgenda, Long> {
             @Param("profesionalId") Long profesionalId,
             @Param("fecha") LocalDate fecha);
 }
+

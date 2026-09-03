@@ -26,6 +26,14 @@ export function createAnnualAgenda(anio) {
   return api.post(`${professionalPath}/agendas`, { anio }, actorOptions);
 }
 
+export function initializeCalendar(diasSemana, repetirAlMesSiguiente = true) {
+  return api.post(
+    `${professionalPath}/agendas/inicializacion`,
+    { diasSemana, repetirAlMesSiguiente },
+    actorOptions,
+  );
+}
+
 export function listMonths(anio) {
   return api.get(`${professionalPath}/agendas/${encodeURIComponent(anio)}/meses`);
 }
@@ -93,6 +101,7 @@ export function deactivateAppointment(appointmentId, motivo) {
 export const agendaApi = Object.freeze({
   listAnnualAgendas,
   createAnnualAgenda,
+  initializeCalendar,
   listMonths,
   getMonth,
   generateMonthDays,

@@ -6,10 +6,12 @@ import com.apiturnos.agenda.model.MesAgenda;
 import com.apiturnos.agenda.repository.AgendaAnualRepository;
 import com.apiturnos.agenda.repository.MesAgendaRepository;
 import com.apiturnos.agenda.service.CrearAgendaAnual;
+import com.apiturnos.agenda.service.EliminarAgendaAnual;
 import com.apiturnos.estado.model.AmbitoEstado;
 import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.profesional.model.Profesional;
 import com.apiturnos.shared.exception.AgendaAnualDuplicadaException;
+import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import com.apiturnos.shared.exception.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,7 +33,10 @@ import java.util.Optional;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -56,8 +61,12 @@ class AgendaAnualControllerUnitTest {
     @Mock
     private GestorCambioEstado gestorCambioEstado;
 
+    @Mock
+    private EliminarAgendaAnual eliminarAgendaAnual;
+
     @InjectMocks
     private AgendaAnualController agendaAnualController;
+
 
     private Profesional profesional;
     private AgendaAnual agenda;
@@ -144,4 +153,34 @@ class AgendaAnualControllerUnitTest {
                 .andExpect(jsonPath("$[0].nroMes").value(1))
                 .andExpect(jsonPath("$[0].estadoActual").value("ACTIVO"));
     }
+
+    @Test
+    @DisplayName("DELETE /api/profesionales/{profesionalId}/agendas/actual - Elimina agenda año actual retornando 204")
+    void testEliminarAnioActual204() throws Exception {
+        doNothing().when(eliminarAgendaAnual).ejecutarAnioActual(eq(1L), any());
+
+        mockMvc.perform(delete("/api/profesionales/1/agendas/actual"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/profesionales/{profesionalId}/agendas/{anio} - Elimina agenda por año retornando 204")
+    void testEliminarPorAnio204() throws Exception {
+        doNothing().when(eliminarAgendaAnual).ejecutar(eq(1L), eq(2027), any());
+
+        mockMvc.perform(delete("/api/profesionales/1/agendas/2027"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/profesionales/{profesionalId}/agendas/{anio} - 404 cuando no existe la agenda")
+    void testEliminarPorAnioNoEncontrada404() throws Exception {
+        doThrow(new EntidadNoEncontradaException("AgendaAnual para año 2099 del profesional 1 no encontrada"))
+                .when(eliminarAgendaAnual).ejecutar(eq(1L), eq(2099), any());
+
+        mockMvc.perform(delete("/api/profesionales/1/agendas/2099"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+    }
 }
+

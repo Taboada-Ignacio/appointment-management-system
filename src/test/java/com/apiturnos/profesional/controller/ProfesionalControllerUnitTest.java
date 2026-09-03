@@ -6,7 +6,9 @@ import com.apiturnos.profesional.dto.ProfesionalResponseDto;
 import com.apiturnos.profesional.model.Configuracion;
 import com.apiturnos.profesional.model.Profesional;
 import com.apiturnos.profesional.service.EditarProfesional;
+import com.apiturnos.profesional.service.EliminarConfiguracionProfesional;
 import com.apiturnos.profesional.service.EliminarProfesional;
+
 import com.apiturnos.profesional.service.ListarProfesionales;
 import com.apiturnos.profesional.service.ModificarConfiguracionProfesional;
 import com.apiturnos.profesional.service.ObtenerConfiguracionProfesional;
@@ -76,8 +78,12 @@ class ProfesionalControllerUnitTest {
     @Mock
     private RegistrarConfiguracionProfesional registrarConfiguracionProfesional;
 
+    @Mock
+    private EliminarConfiguracionProfesional eliminarConfiguracionProfesional;
+
     @InjectMocks
     private ProfesionalController controller;
+
 
     private Profesional profesional;
 
@@ -339,4 +345,24 @@ class ProfesionalControllerUnitTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @DisplayName("DELETE /api/profesionales/1/configuracion -> 204 No Content")
+    void eliminarConfiguracion_retorna204() throws Exception {
+        doNothing().when(eliminarConfiguracionProfesional).ejecutar(eq(1L), any());
+
+        mockMvc.perform(delete("/api/profesionales/1/configuracion"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/profesionales/99/configuracion no existente -> 404 Not Found")
+    void eliminarConfiguracion_noExiste_retorna404() throws Exception {
+        doThrow(new EntidadNoEncontradaException("Configuración de Profesional", 99L))
+                .when(eliminarConfiguracionProfesional).ejecutar(eq(99L), any());
+
+        mockMvc.perform(delete("/api/profesionales/99/configuracion"))
+                .andExpect(status().isNotFound());
+    }
 }
+

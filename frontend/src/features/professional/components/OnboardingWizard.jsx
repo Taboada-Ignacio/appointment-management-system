@@ -44,14 +44,8 @@ import { getCurrentYearMonth, BACKEND_DAYS, DAY_NAMES, MONTH_NAMES } from '@/uti
 import { validateGaps } from '@/utils/gaps';
 import { WEEKLY_TEMPLATE_KEY } from './WeeklyEditor';
 import { GapEditor } from './GapEditor';
-import { useRegisterProfessionalConfig } from '../hooks/useProfessionalConfig';
-import {
-  createAnnualAgenda,
-  listMonths,
-  configureMonthWeek,
-  activateMonth,
-  setRepeatMonth,
-} from '../api/agendaApi';
+import { useRegisterProfessionalConfig, useUpdateProfessionalConfig } from '../hooks/useProfessionalConfig';
+import { initializeCalendar } from '../api/agendaApi';
 import { ProfessionalTestSwitcher } from './ProfessionalTestSwitcher';
 import { cn } from '@/lib/utils';
 
@@ -90,9 +84,11 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
   const navigate = useNavigate();
   const { success, error: showError } = useToast();
   const registerConfig = useRegisterProfessionalConfig();
+  const updateConfig = useUpdateProfessionalConfig();
 
   const { year: currentYear, month: currentMonth } = getCurrentYearMonth(professionalContext.timezone);
-  const nextMonthNumber = currentMonth === 12 ? 12 : currentMonth + 1;
+  const nextMonthNumber = currentMonth === 12 ? 1 : currentMonth + 1;
+  const nextMonthYear = currentMonth === 12 ? currentYear + 1 : currentYear;
 
   const [step, setStep] = useState(initialStep);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -167,6 +163,7 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
 
   // Saved summary
   const [savedSummary, setSavedSummary] = useState(savedConfig);
+  const [calendarSummary, setCalendarSummary] = useState(null);
 
   // Resolve numeric values
   const finalDuration = durationSelect === 'otro' ? Number(customDuration) : Number(durationSelect);
@@ -200,10 +197,17 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
         umbralCancelacionHoras: finalThreshold,
       };
 
-      const result = await registerConfig.mutateAsync(payload);
+      const result = savedSummary
+        ? await updateConfig.mutateAsync(payload)
+        : await registerConfig.mutateAsync(payload);
       setSavedSummary(result || payload);
       setChecklist((prev) => prev.map((item) => (item.id === 'config' ? { ...item, done: true } : item)));
-      success('Configuración guardada', 'Parámetros del profesional registrados con éxito.');
+      success(
+        savedSummary ? 'Cambios aplicados' : 'Configuración guardada',
+        savedSummary
+          ? 'Los parámetros del profesional se actualizaron correctamente.'
+          : 'Parámetros del profesional registrados con éxito.',
+      );
       setStep(2);
     } catch (err) {
       showError('Error al guardar configuración', err.message || 'No se pudo registrar la configuración.');
@@ -276,46 +280,16 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
       setChecklist((prev) => prev.map((item) => (item.id === 'template' ? { ...item, done: true } : item)));
       setGenerationProgress(25);
 
-      // 2. Create Annual Agenda
-      setGenerationStatusText(`Creando agenda anual para el año ${currentYear}...`);
-      let monthsList = [];
-      try {
-        await createAnnualAgenda(currentYear);
-      } catch (agendaErr) {
-        console.warn('Annual agenda notice:', agendaErr);
+      // 2. Initialize the complete calendar atomically in the backend
+      setGenerationStatusText(`Creando y verificando la configuración inicial del calendario...`);
+      const result = await initializeCalendar(weeklyDraft.diasSemana, repeatMonthConfig);
+      if (!result?.completado) {
+        throw new Error('El backend no confirmó la inicialización completa del calendario.');
       }
+      setCalendarSummary(result);
       setChecklist((prev) => prev.map((item) => (item.id === 'annual' ? { ...item, done: true } : item)));
-      setGenerationProgress(45);
+      setGenerationProgress(65);
 
-      // 3. List months for this annual agenda
-      setGenerationStatusText(`Consultando meses de ${currentYear}...`);
-      try {
-        monthsList = await listMonths(currentYear);
-      } catch (fetchMonthsErr) {
-        console.warn('Could not fetch months list:', fetchMonthsErr);
-      }
-
-      // 4. Activate current month and next month
-      setGenerationStatusText(
-        `Activando mes actual (${MONTH_NAMES[currentMonth - 1]}) y siguiente (${MONTH_NAMES[nextMonthNumber - 1]})...`
-      );
-      const currentMonthObj = monthsList?.find((m) => Number(m.nroMes ?? m.mes) === currentMonth);
-      const nextMonthObj = monthsList?.find((m) => Number(m.nroMes ?? m.mes) === nextMonthNumber);
-
-      if (currentMonthObj) {
-        try {
-          await activateMonth(currentMonthObj.id);
-        } catch (err) {
-          console.warn('Current month activation notice:', err);
-        }
-      }
-      if (nextMonthObj && nextMonthObj.id !== currentMonthObj?.id) {
-        try {
-          await activateMonth(nextMonthObj.id);
-        } catch (err) {
-          console.warn('Next month activation notice:', err);
-        }
-      }
       setChecklist((prev) =>
         prev.map((item) =>
           item.id === 'activeMonths' || item.id === 'inactiveMonths'
@@ -323,38 +297,14 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
             : item
         )
       );
-      setGenerationProgress(65);
-
-      // 5. Apply weekly template to months and set repeat configuration
-      if (Array.isArray(monthsList) && monthsList.length > 0) {
-        setGenerationStatusText(`Asignando franjas horarias y activando días laborables...`);
-        const targetMonths = repeatMonthConfig
-          ? monthsList
-          : monthsList.filter(
-              (m) =>
-                Number(m.nroMes ?? m.mes) === currentMonth ||
-                Number(m.nroMes ?? m.mes) === nextMonthNumber
-            );
-
-        const totalMonths = targetMonths.length;
-        for (let i = 0; i < totalMonths; i++) {
-          const month = targetMonths[i];
-          try {
-            await configureMonthWeek(month.id, weeklyDraft.diasSemana);
-            await setRepeatMonth(month.id, repeatMonthConfig);
-          } catch (monthConfigErr) {
-            console.warn(`Could not configure month ${month.nroMes}:`, monthConfigErr);
-          }
-          const progressPercent = 65 + Math.round(((i + 1) / totalMonths) * 35);
-          setGenerationProgress(progressPercent);
-        }
-      }
+      setGenerationStatusText('Validando meses, días laborables y franjas horarias...');
       setChecklist((prev) => prev.map((item) => (item.id === 'daysAndGaps' ? { ...item, done: true } : item)));
       setGenerationProgress(100);
       setGenerationStatusText('¡Generación y activación completada con éxito!');
       success('Agenda lista', `Se crearon tus horarios y los meses ${MONTH_NAMES[currentMonth - 1]} y ${MONTH_NAMES[nextMonthNumber - 1]} están activos.`);
     } catch (err) {
       showError('Error en generación de agenda', err.message || 'Ocurrió un problema durante la generación.');
+      setStep(2);
     } finally {
       setIsGenerating(false);
     }
@@ -633,14 +583,14 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
                 <p className="text-xs text-muted-foreground">
                   Paso 1 de 2 · Los datos se guardan directamente en el backend.
                 </p>
-                <Button type="submit" size="default" disabled={registerConfig.isPending} className="gap-2">
-                  {registerConfig.isPending ? (
+                <Button type="submit" size="default" disabled={registerConfig.isPending || updateConfig.isPending} className="gap-2">
+                  {registerConfig.isPending || updateConfig.isPending ? (
                     <>
                       <Loader2 className="size-4 animate-spin" /> Guardando...
                     </>
                   ) : (
                     <>
-                      Guardar y continuar a horarios <ArrowRight className="size-4" />
+                      {savedSummary ? 'Aplicar cambios y continuar' : 'Guardar y continuar a horarios'} <ArrowRight className="size-4" />
                     </>
                   )}
                 </Button>
@@ -669,13 +619,13 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
             </CardHeader>
 
             <CardContent className="space-y-6 p-6 sm:p-8">
-              {/* Opción repetir configuración por mes (por defecto activa, deseleccionable) */}
+              {/* Opción para preparar también el mes siguiente */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border bg-card/60 p-4 sm:p-5 transition-colors">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <RotateCcw className="size-4 text-primary" />
                     <Label htmlFor="repeat-month-switch" className="text-sm font-semibold cursor-pointer">
-                      Repetir esta configuración por mes
+                      Repetir configuración al mes siguiente
                     </Label>
                     <Badge variant="secondary" className="text-[10px] font-mono uppercase">
                       Por defecto
@@ -683,8 +633,8 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {repeatMonthConfig
-                      ? `Activado: Se activará el mes actual (${MONTH_NAMES[currentMonth - 1]}) y el siguiente (${MONTH_NAMES[nextMonthNumber - 1]}), con sus días en estado ACTIVO. Los demás meses y sus días se crearán en estado INACTIVO.`
-                      : `Desactivado: Solo se aplicará al mes actual (${MONTH_NAMES[currentMonth - 1]}) y al siguiente (${MONTH_NAMES[nextMonthNumber - 1]}), con sus días en estado ACTIVO. Los demás meses y días quedarán en estado INACTIVO.`}
+                      ? `La misma semana se aplicará a ${MONTH_NAMES[nextMonthNumber - 1]} de ${nextMonthYear}. Solo los días laborables quedarán activos.`
+                      : `La configuración se aplicará únicamente a ${MONTH_NAMES[currentMonth - 1]}.`}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -692,10 +642,10 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
                     id="repeat-month-switch"
                     checked={repeatMonthConfig}
                     onCheckedChange={setRepeatMonthConfig}
-                    aria-label="Repetir esta configuración por mes"
+                    aria-label="Repetir configuración al mes siguiente"
                   />
                   <span className="text-xs font-medium">
-                    {repeatMonthConfig ? 'Repetir en todo el año' : 'Solo meses iniciales'}
+                    {repeatMonthConfig ? 'Aplicar también al mes siguiente' : 'Aplicar solo al mes actual'}
                   </span>
                 </div>
               </div>
@@ -769,16 +719,9 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
             </CardContent>
 
             <CardFooter className="flex items-center justify-between border-t bg-muted/10 px-6 py-4">
-              {savedConfig ? (
-                <div className="text-xs text-muted-foreground">
-                  Parámetros guardados: <strong>{savedConfig.duracionAproximadaPorTurno} min</strong> por turno ·{' '}
-                  <strong>{savedConfig.cantidadMaxTurnosALaVez} max</strong> simultáneo.
-                </div>
-              ) : (
-                <Button type="button" variant="outline" onClick={() => setStep(1)} className="gap-2">
-                  <ArrowLeft className="size-4" /> Volver a parámetros
-                </Button>
-              )}
+              <Button type="button" variant="outline" onClick={() => setStep(1)} className="gap-2">
+                <ArrowLeft className="size-4" /> Volver a parámetros
+              </Button>
               <Button
                 type="button"
                 onClick={handlePromptConfirmation}
@@ -794,7 +737,8 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>¿Confirmar horarios y generar agenda?</AlertDialogTitle>
-                  <AlertDialogDescription className="space-y-2 text-xs text-muted-foreground">
+                  <AlertDialogDescription asChild>
+                    <div className="space-y-2 text-xs text-muted-foreground">
                     <p>
                       Al confirmar, se creará la agenda anual para el año <strong>{currentYear}</strong>.
                     </p>
@@ -814,10 +758,11 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
                       Repetición mensual:{' '}
                       <strong className="text-foreground">
                         {repeatMonthConfig
-                          ? 'Sí, repetir en todos los meses del año'
-                          : 'No, aplicar solo al mes actual y siguiente'}
+                          ? `Sí, aplicar también a ${MONTH_NAMES[nextMonthNumber - 1]} de ${nextMonthYear}`
+                          : 'No, aplicar solo al mes actual'}
                       </strong>
                     </p>
+                    </div>
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -891,11 +836,10 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
                     ¡Todo listo! Tu consultorio está preparado para trabajar
                   </CardTitle>
                   <CardDescription className="text-sm max-w-lg mx-auto">
-                    Se registró tu configuración profesional, se definieron tus horarios y se creó tu agenda anual {currentYear}.
-                    Se activaron el mes actual (<strong>{MONTH_NAMES[currentMonth - 1]}</strong>) y el siguiente (
-                    <strong>{MONTH_NAMES[nextMonthNumber - 1]}</strong>), junto con sus días de atención en estado{' '}
-                    <strong>ACTIVO</strong>. Los demás meses del año y sus días quedaron creados en estado{' '}
-                    <strong>INACTIVO</strong> listos para activarse a futuro.
+                    El backend confirmó la configuración profesional y el calendario inicial.
+                    Los días laborables de <strong>{MONTH_NAMES[currentMonth - 1]}</strong>
+                    {repeatMonthConfig && <> y <strong>{MONTH_NAMES[nextMonthNumber - 1]} de {nextMonthYear}</strong></>} quedaron activos.
+                    Los días no laborables y los meses restantes quedaron inactivos.
                   </CardDescription>
                 </CardHeader>
 
@@ -931,27 +875,29 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
                       />
                       <SummaryItem
                         label="Días de atención configurados"
-                        value={`${weeklyDraft.diasSemana.length} días laborables`}
+                        value={`${calendarSummary?.diasLaborablesPorSemana ?? weeklyDraft.diasSemana.length} días laborables`}
                       />
                       <SummaryItem
-                        label="Repetir configuración por mes"
+                        label="Repetir configuración al mes siguiente"
                         value={
-                          repeatMonthConfig
-                            ? 'Activado (se replica en todo el año)'
-                            : 'Desactivado (solo mes actual y siguiente)'
+                          calendarSummary?.repetidoAlMesSiguiente
+                            ? `Aplicada a ${MONTH_NAMES[nextMonthNumber - 1]} de ${nextMonthYear}`
+                            : 'Desactivado (solo mes actual)'
                         }
                       />
                       <SummaryItem
                         label="Meses y días activos"
-                        value={`${MONTH_NAMES[currentMonth - 1]} y ${MONTH_NAMES[nextMonthNumber - 1]} (días en estado ACTIVO)`}
+                        value={(calendarSummary?.mesesConfigurados || [])
+                          .map((mes) => `${MONTH_NAMES[mes.nroMes - 1]} ${mes.anio}: ${mes.diasActivos} días`)
+                          .join(' · ')}
                       />
                       <SummaryItem
                         label="Meses restantes"
-                        value="10 meses (estado INACTIVO, días inactivos)"
+                        value={`${Math.max(0, (calendarSummary?.agendasAnuales?.length || 1) * 12 - (calendarSummary?.mesesConfigurados?.length || 0))} meses inactivos`}
                       />
                       <SummaryItem
                         label="Agenda anual creada"
-                        value={`Año ${currentYear} (Días y franjas generados)`}
+                        value={(calendarSummary?.agendasAnuales || [currentYear]).join(', ')}
                         className="sm:col-span-2 md:col-span-3"
                       />
                     </dl>

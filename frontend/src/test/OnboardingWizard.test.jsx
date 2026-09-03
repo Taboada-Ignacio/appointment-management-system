@@ -44,7 +44,7 @@ describe('OnboardingWizard Component', () => {
     expect(screen.getByText(/Si está activado, los pacientes no podrán solicitar turnos/i)).toBeInTheDocument();
   });
 
-  it('starts directly at Step 2 when professional has savedConfig and initialStep is 2', () => {
+  it('starts at Step 2 and allows returning to apply parameter changes with PUT', async () => {
     const mockSavedConfig = {
       id: 1,
       profesionalId: 1,
@@ -54,15 +54,23 @@ describe('OnboardingWizard Component', () => {
       umbralCancelacionHoras: 12,
     };
 
+    const putSpy = vi.spyOn(api, 'put').mockResolvedValue(mockSavedConfig);
     renderWizard({ initialStep: 2, savedConfig: mockSavedConfig });
 
     expect(screen.getByText('Días de Atención y Franjas Horarias')).toBeInTheDocument();
     expect(screen.getByText(/Tus parámetros ya están guardados/i)).toBeInTheDocument();
-    expect(screen.getByText(/45 min/i)).toBeInTheDocument();
     expect(screen.queryByText('Parámetros de Atención y Turnos')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Volver a parámetros/i }));
+    expect(screen.getByText('Parámetros de Atención y Turnos')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Aplicar cambios y continuar/i }));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledWith(
+      '/api/profesionales/1/configuracion',
+      expect.objectContaining({ duracionAproximadaPorTurno: 45 }),
+      expect.anything(),
+    ));
 
     // Has "Repetir esta configuración por mes" switch checked by default and can be deselected
-    const repeatSwitch = screen.getByLabelText(/Repetir esta configuración por mes/i);
+    const repeatSwitch = screen.getByLabelText(/Repetir configuración al mes siguiente/i);
     expect(repeatSwitch).toBeInTheDocument();
     expect(repeatSwitch).toBeChecked();
 
@@ -83,30 +91,19 @@ describe('OnboardingWizard Component', () => {
           umbralCancelacionHoras: 24,
         };
       }
-      if (url.includes('/agendas')) {
-        return { id: 10, anio: 2026 };
-      }
-      if (url.includes('/modo-semana')) {
-        return { id: 101, estado: 'INACTIVO' };
-      }
-      if (url.includes('/activar')) {
-        return {};
+      if (url.includes('/agendas/inicializacion')) {
+        return {
+          completado: true,
+          agendasAnuales: [2026],
+          mesesConfigurados: [
+            { id: 9, anio: 2026, nroMes: 9, estado: 'ACTIVO', diasActivos: 22, diasInactivos: 8 },
+            { id: 10, anio: 2026, nroMes: 10, estado: 'ACTIVO', diasActivos: 23, diasInactivos: 8 },
+          ],
+          diasLaborablesPorSemana: 5,
+          repetidoAlMesSiguiente: true,
+        };
       }
       return {};
-    });
-
-    const putSpy = vi.spyOn(api, 'put').mockImplementation(async () => ({}));
-
-    vi.spyOn(api, 'get').mockImplementation(async (url) => {
-      if (url.includes('/meses')) {
-        return [
-          { id: 1, nroMes: 1, anio: 2026, estadoActual: 'INACTIVO' },
-          { id: 2, nroMes: 2, anio: 2026, estadoActual: 'INACTIVO' },
-          { id: 9, nroMes: 9, anio: 2026, estadoActual: 'INACTIVO' },
-          { id: 10, nroMes: 10, anio: 2026, estadoActual: 'INACTIVO' },
-        ];
-      }
-      return [];
     });
 
     const onCompleteMock = vi.fn();
@@ -122,7 +119,7 @@ describe('OnboardingWizard Component', () => {
     });
 
     // Check repeat switch is present and checked by default
-    const repeatSwitch = screen.getByLabelText(/Repetir esta configuración por mes/i);
+    const repeatSwitch = screen.getByLabelText(/Repetir configuración al mes siguiente/i);
     expect(repeatSwitch).toBeInTheDocument();
     expect(repeatSwitch).toBeChecked();
 
@@ -144,16 +141,42 @@ describe('OnboardingWizard Component', () => {
     // 6. Verify Final Success Screen appears
     await waitFor(() => {
       expect(screen.getByText('¡Todo listo! Tu consultorio está preparado para trabajar')).toBeInTheDocument();
-      expect(screen.getByText('Repetir configuración por mes')).toBeInTheDocument();
+      expect(screen.getByText('Repetir configuración al mes siguiente')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Empezar a trabajar \(Ir a Mi Día\)/i })).toBeInTheDocument();
     });
 
-    // Verify put was called for repetir-configuracion
-    expect(putSpy).toHaveBeenCalled();
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/profesionales/1/agendas/inicializacion',
+      expect.objectContaining({ repetirAlMesSiguiente: true }),
+      expect.anything(),
+    );
 
     // 7. Click "Empezar a trabajar"
     const startBtn = screen.getByRole('button', { name: /Empezar a trabajar \(Ir a Mi Día\)/i });
     fireEvent.click(startBtn);
     expect(onCompleteMock).toHaveBeenCalled();
+  });
+
+  it('returns to Step 2 and does not show success when atomic initialization fails', async () => {
+    vi.spyOn(api, 'post').mockRejectedValue(new Error('No se pudo inicializar el calendario'));
+    renderWizard({
+      initialStep: 2,
+      savedConfig: {
+        id: 1,
+        profesionalId: 1,
+        cantidadMaxTurnosALaVez: 1,
+        duracionAproximadaPorTurno: 30,
+        agendaSoloManejadaPorProfesional: false,
+        umbralCancelacionHoras: 24,
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar horarios y generar agenda/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /Confirmar e iniciar/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Días de Atención y Franjas Horarias')).toBeInTheDocument();
+      expect(screen.queryByText(/Todo listo/i)).not.toBeInTheDocument();
+    });
   });
 });
