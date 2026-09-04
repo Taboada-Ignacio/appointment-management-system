@@ -9,6 +9,7 @@ import {
   formatTimeRange,
   totalAvailableMinutes,
   gapsToSignalSegments,
+  subtractGaps,
 } from '../utils/gaps';
 
 describe('Gaps Utilities (gaps.js)', () => {
@@ -105,9 +106,54 @@ describe('Gaps Utilities (gaps.js)', () => {
     const segments = gapsToSignalSegments(gaps, '08:00', '14:00');
 
     expect(segments).toEqual([
-      { start: '08:00', end: '09:00', isAvailable: false },
-      { start: '09:00', end: '12:00', isAvailable: true },
-      { start: '12:00', end: '14:00', isAvailable: false },
+      { start: '08:00', end: '09:00', isAvailable: false, isBlocked: false, status: 'inactive' },
+      { start: '09:00', end: '12:00', isAvailable: true, isBlocked: false, status: 'available' },
+      { start: '12:00', end: '14:00', isAvailable: false, isBlocked: false, status: 'inactive' },
+    ]);
+  });
+
+  it('subtracts blocked intervals from schedule gaps (subtractGaps)', () => {
+    const brechas = [
+      { horaInicio: '09:00', horaFin: '13:00' },
+      { horaInicio: '14:00', horaFin: '18:00' },
+    ];
+    const bloqueos = [
+      { horaInicio: '10:00', horaFin: '11:00' }, // middle of first gap
+      { horaInicio: '17:00', horaFin: '19:00' }, // overlaps end of second gap
+    ];
+
+    const result = subtractGaps(brechas, bloqueos);
+    expect(result).toEqual([
+      { horaInicio: '09:00', horaFin: '10:00' },
+      { horaInicio: '11:00', horaFin: '13:00' },
+      { horaInicio: '14:00', horaFin: '17:00' },
+    ]);
+  });
+
+  it('handles complete gap cancellation when block covers entire gap', () => {
+    const brechas = [{ horaInicio: '09:00', horaFin: '12:00' }];
+    const bloqueos = [{ horaInicio: '08:00', horaFin: '13:00' }];
+
+    expect(subtractGaps(brechas, bloqueos)).toEqual([]);
+  });
+
+  it('computes total available minutes discounting blocked intervals', () => {
+    const brechas = [{ horaInicio: '09:00', horaFin: '13:00' }]; // 240 min
+    const bloqueos = [{ horaInicio: '10:00', horaFin: '11:00' }]; // 60 min blocked
+    expect(totalAvailableMinutes(brechas, bloqueos)).toBe(180);
+  });
+
+  it('generates availability signal segments reflecting blocked slots and feasible gaps', () => {
+    const brechas = [{ horaInicio: '09:00', horaFin: '13:00' }];
+    const bloqueos = [{ horaInicio: '10:00', horaFin: '11:00' }];
+
+    const segments = gapsToSignalSegments(brechas, '08:00', '14:00', bloqueos);
+    expect(segments).toEqual([
+      { start: '08:00', end: '09:00', isAvailable: false, isBlocked: false, status: 'inactive' },
+      { start: '09:00', end: '10:00', isAvailable: true, isBlocked: false, status: 'available' },
+      { start: '10:00', end: '11:00', isAvailable: false, isBlocked: true, status: 'blocked' },
+      { start: '11:00', end: '13:00', isAvailable: true, isBlocked: false, status: 'available' },
+      { start: '13:00', end: '14:00', isAvailable: false, isBlocked: false, status: 'inactive' },
     ]);
   });
 });

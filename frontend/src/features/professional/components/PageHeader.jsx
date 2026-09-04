@@ -14,7 +14,9 @@ const routeLabels = {
   '/profesional/mi-mes': 'Mi mes',
   '/profesional/mi-anio': 'Mi año',
   '/profesional/ausencias': 'Manejo de ausencias',
-  '/profesional/ausencias/registrar': 'Registrar excepción',
+  '/profesional/ausencias/registrar': 'Registrar Ausencias',
+  '/profesional/ausencias/habilitaciones': 'Registrar Habilitaciones Extraordinarias',
+  '/profesional/ausencias/modificaciones': 'Registrar Modificaciones Extraordinarias',
   '/profesional/ausencias/excepciones': 'Consultar excepciones',
   '/profesional/turnos-afectados': 'Turnos afectados',
   '/profesional/configuracion': 'Configuración',
@@ -37,7 +39,7 @@ export function PageHeader({ eyebrow, title, description, status = null, actions
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             {isAbsenceChild && <>
-              <BreadcrumbItem><BreadcrumbLink asChild><Link to="/profesional/ausencias/registrar">Ausencias y excepciones</Link></BreadcrumbLink></BreadcrumbItem>
+              <BreadcrumbItem><BreadcrumbLink asChild><Link to="/profesional/ausencias/registrar">Ausencias y Modificaciones Excepcionales</Link></BreadcrumbLink></BreadcrumbItem>
               <BreadcrumbSeparator />
             </>}
             <BreadcrumbItem>

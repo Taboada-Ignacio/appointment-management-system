@@ -40,7 +40,7 @@ const navigation = [
   { to: '/profesional/mi-dia', label: 'Mi día', icon: Clock3 },
   { to: '/profesional/mi-mes', label: 'Mi mes', icon: CalendarDays },
   { to: '/profesional/mi-anio', label: 'Mi año', icon: CalendarRange },
-  { type: 'absences', label: 'Ausencias y excepciones', icon: CalendarX2 },
+  { type: 'absences', label: 'Ausencias y Modificaciones Excepcionales', icon: CalendarX2 },
   { to: '/profesional/turnos-afectados', label: 'Turnos afectados', icon: UserRound },
   { to: '/profesional/configuracion', label: 'Configuración', icon: Settings2 },
   { to: '/profesional/mi-semana', label: 'Cambiar mi semana', icon: SlidersHorizontal },
@@ -134,15 +134,38 @@ function NavigationContent({ hasAnnualAgenda, onNavigate, pendingAffectedCount }
                     onClick={() => inAbsences
                       ? setCollapsedPath(absencesOpen ? pathname : null)
                       : setManuallyOpen((open) => !open)}
-                    className="h-10 rounded-lg px-3 font-semibold text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground"
+                    className={cn(
+                      'min-h-11 h-auto py-2.5 rounded-lg px-3 font-semibold text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground items-start gap-2.5 overflow-visible'
+                    )}
                   >
-                    <Icon className={cn(inAbsences ? 'text-sidebar-primary-foreground' : 'text-sidebar-primary')} aria-hidden="true" />
-                    <span className="flex-1 text-left">{label}</span>
-                    <ChevronRight className={cn('size-4 transition-transform duration-200', absencesOpen && 'rotate-90')} aria-hidden="true" />
+                    <Icon className={cn('size-4 shrink-0 mt-0.5', inAbsences ? 'text-sidebar-primary-foreground' : 'text-sidebar-primary')} aria-hidden="true" />
+                    <span className="flex-1 text-left text-xs sm:text-sm font-semibold leading-snug whitespace-normal break-words overflow-visible">
+                      {label}
+                    </span>
+                    <ChevronRight className={cn('size-4 shrink-0 mt-0.5 transition-transform duration-200', absencesOpen && 'rotate-90')} aria-hidden="true" />
                   </SidebarMenuButton>
                   {absencesOpen && <div id="submenu-ausencias" className="grid animate-in fade-in-0 slide-in-from-top-1 duration-200">
                     <div><div className="ml-5 mt-1 space-y-1 border-l border-sidebar-border pl-3">
-                      {[['/profesional/ausencias/registrar','Registrar excepción'],['/profesional/ausencias/excepciones','Consultar excepciones']].map(([childTo, childLabel]) => <NavLink key={childTo} to={childTo} onClick={onNavigate} className={({isActive})=>cn('flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-sidebar-foreground/65 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',isActive&&'bg-sidebar-accent text-sidebar-primary')}><span>{childLabel}</span></NavLink>)}
+                      {[
+                        ['/profesional/ausencias/registrar', 'Registrar Ausencias'],
+                        ['/profesional/ausencias/habilitaciones', 'Registrar Habilitaciones Extraordinarias'],
+                        ['/profesional/ausencias/modificaciones', 'Registrar Modificaciones Extraordinarias'],
+                        ['/profesional/ausencias/excepciones', 'Consultar excepciones'],
+                      ].map(([childTo, childLabel]) => (
+                        <NavLink
+                          key={childTo}
+                          to={childTo}
+                          onClick={onNavigate}
+                          className={({ isActive }) =>
+                            cn(
+                              'flex min-h-9 items-center rounded-lg px-3 py-1.5 text-xs font-semibold text-sidebar-foreground/65 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground leading-snug',
+                              isActive && 'bg-sidebar-accent text-sidebar-primary'
+                            )
+                          }
+                        >
+                          <span className="flex-1 whitespace-normal break-words">{childLabel}</span>
+                        </NavLink>
+                      ))}
                     </div></div>
                   </div>}
                 </SidebarMenuItem>;
@@ -197,7 +220,7 @@ export function ProfessionalSidebar({
       <SidebarProvider className="contents">
         <Sidebar
           collapsible="none"
-          className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r-0 bg-sidebar text-sidebar-foreground lg:flex"
+          className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r-0 bg-sidebar text-sidebar-foreground lg:flex"
           aria-label="Navegación profesional"
         >
           <NavigationContent hasAnnualAgenda={hasAnnualAgenda} pendingAffectedCount={pendingAffectedCount} />
@@ -209,7 +232,7 @@ export function ProfessionalSidebar({
           id="navegacion-profesional-movil"
           side="left"
           showCloseButton={false}
-          className="w-[min(17rem,88vw)] gap-0 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground sm:max-w-[17rem] lg:hidden"
+          className="w-[min(19rem,88vw)] gap-0 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground sm:max-w-[19rem] lg:hidden"
           onCloseAutoFocus={(event) => {
             if (!returnFocusRef?.current) return;
             event.preventDefault();

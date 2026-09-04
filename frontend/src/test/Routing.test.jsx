@@ -63,23 +63,35 @@ describe('Routing & Shell Navigation', () => {
     expect(screen.getByRole('link', { name: /Turnos afectados.*1 turno pendiente/i })).toBeInTheDocument();
   });
 
-  it('despliega las dos opciones de ausencias sin navegar y conserva turnos afectados como sección principal', async () => {
+  it('despliega las opciones del menú de ausencias y modificaciones sin navegar', async () => {
     const user = userEvent.setup();
     renderWithRouter(['/profesional/mi-dia']);
 
-    const parent = screen.getByRole('button', { name: /Ausencias y excepciones/i });
+    const parent = screen.getByRole('button', { name: /Ausencias y Modificaciones Excepcionales/i });
     expect(parent).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('link', { name: 'Registrar excepción' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Registrar Ausencias' })).not.toBeInTheDocument();
 
     await user.click(parent);
     expect(parent).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('link', { name: 'Registrar excepción' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Registrar Ausencias' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Registrar Habilitaciones Extraordinarias' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Registrar Modificaciones Extraordinarias' })).toBeVisible();
     expect(screen.getByRole('link', { name: 'Consultar excepciones' })).toBeVisible();
+  });
+
+  it('navega a la subsección Registrar Habilitaciones Extraordinarias', async () => {
+    renderWithRouter(['/profesional/ausencias/habilitaciones']);
+    expect(await screen.findByRole('heading', { name: 'Registrar Habilitaciones Extraordinarias' })).toBeInTheDocument();
+  });
+
+  it('navega a la subsección Registrar Modificaciones Extraordinarias', async () => {
+    renderWithRouter(['/profesional/ausencias/modificaciones']);
+    expect(await screen.findByRole('heading', { name: 'Registrar Modificaciones Extraordinarias' })).toBeInTheDocument();
   });
 
   it('redirige la ruta anterior de ausencias a registrar excepción', async () => {
     renderWithRouter(['/profesional/ausencias']);
-    expect(await screen.findByRole('heading', { name: 'Registrar excepción' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Registrar Ausencias' })).toBeInTheDocument();
   });
 
   it('renders blocking OnboardingWizard at Step 1 when professional has no configuration', () => {

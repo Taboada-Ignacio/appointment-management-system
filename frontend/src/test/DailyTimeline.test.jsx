@@ -87,4 +87,39 @@ describe('DailyTimeline Component', () => {
 
     expect(screen.getByText('Sin brechas de atención')).toBeInTheDocument();
   });
+
+  it('renders only feasible appointment gaps and reflects schedule blocks when bloqueosHorario is present', () => {
+    const dayWithBlocks = {
+      fecha: '2026-09-15',
+      estadoActual: 'ACTIVO',
+      brechas: [
+        { horaInicio: '09:00', horaFin: '13:00' },
+      ],
+      bloqueosHorario: [
+        { horaInicio: '10:00', horaFin: '11:00' },
+      ],
+    };
+
+    render(
+      <DailyTimeline
+        day={dayWithBlocks}
+        timezone="America/Argentina/Buenos_Aires"
+      />
+    );
+
+    // Feasible available gaps displayed in timeline (difference: 09:00-10:00 and 11:00-13:00)
+    expect(screen.getByText('09:00 – 10:00')).toBeInTheDocument();
+    expect(screen.getByText('11:00 – 13:00')).toBeInTheDocument();
+    // Original uninterrupted range 09:00 – 13:00 should not be rendered as an available gap
+    expect(screen.queryByText('09:00 – 13:00')).not.toBeInTheDocument();
+
+    // Blocked interval displayed in timeline
+    expect(screen.getByText('10:00 – 11:00')).toBeInTheDocument();
+    expect(screen.getByText('· Horario bloqueado')).toBeInTheDocument();
+
+    // Legend entries
+    expect(screen.getByText('Disponible para turnos')).toBeInTheDocument();
+    expect(screen.getByText('Bloqueo de horario')).toBeInTheDocument();
+    expect(screen.getByText('Bloqueado 10:00 – 11:00')).toBeInTheDocument();
+  });
 });

@@ -26,6 +26,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "   Docker esta activo." -ForegroundColor Green
 
+# Deteccion de IP LAN
+$lanIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.InterfaceAlias -notmatch "vEthernet|Loopback|Docker|WSL" -and $_.IPAddress -notmatch "^127\.|^169\.254\." } |
+    Sort-Object -Property InterfaceMetric |
+    Select-Object -First 1).IPAddress
+
 if ($Local) {
     Write-Host ""
     Write-Host "Modo Local: Levantando PostgreSQL con Docker y backend/frontend en procesos locales..." -ForegroundColor Yellow
@@ -43,6 +49,15 @@ if ($Local) {
 
     Write-Host ""
     Write-Host " Servicios locales iniciados." -ForegroundColor Green
+    Write-Host "  Frontend (Local):   http://localhost:5173" -ForegroundColor Cyan
+    if ($lanIp) {
+        Write-Host "  Frontend (Red LAN): http://${lanIp}:5173" -ForegroundColor Yellow
+    }
+    Write-Host "  Swagger UI:         http://localhost:8080/swagger-ui.html" -ForegroundColor Cyan
+    if ($lanIp) {
+        Write-Host "  Swagger UI (LAN):   http://${lanIp}:5173/swagger-ui.html" -ForegroundColor Yellow
+    }
+    Write-Host ""
     if (-not $NoBrowser) {
         Start-Sleep -Seconds 4
         Start-Process "http://localhost:8080/swagger-ui.html"
@@ -91,10 +106,16 @@ Write-Host "==========================================================" -Foregro
 Write-Host "  Todos los servicios se han levantado correctamente!" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Swagger UI:  http://localhost:8080/swagger-ui.html" -ForegroundColor Cyan
-Write-Host "  Backend API: http://localhost:8080" -ForegroundColor Cyan
-Write-Host "  Frontend:    http://localhost:5173" -ForegroundColor Cyan
-Write-Host "  PostgreSQL:  localhost:5432 (turnos_db)" -ForegroundColor Cyan
+Write-Host "  Frontend (Local):   http://localhost:5173" -ForegroundColor Cyan
+if ($lanIp) {
+    Write-Host "  Frontend (Red LAN): http://${lanIp}:5173" -ForegroundColor Yellow
+}
+Write-Host "  Swagger UI:         http://localhost:8080/swagger-ui.html" -ForegroundColor Cyan
+if ($lanIp) {
+    Write-Host "  Swagger UI (LAN):   http://${lanIp}:5173/swagger-ui.html" -ForegroundColor Yellow
+}
+Write-Host "  Backend API:        http://localhost:8080" -ForegroundColor Cyan
+Write-Host "  PostgreSQL:         127.0.0.1:5432 (turnos_db)" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Para detener todos los servicios, ejecuta: .\stop.ps1 o doble clic en stop.bat" -ForegroundColor Yellow
 Write-Host ""

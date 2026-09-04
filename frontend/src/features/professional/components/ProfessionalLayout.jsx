@@ -91,7 +91,7 @@ export function ProfessionalLayout() {
         pendingAffectedCount={pendingAffectedCount}
       />
 
-      <div className="lg:pl-64">
+      <div className="lg:pl-72">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/92 px-4 backdrop-blur-md sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <Button

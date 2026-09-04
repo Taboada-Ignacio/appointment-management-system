@@ -84,7 +84,8 @@ public class ExcepcionAgendaController {
                 .filter(e -> desde == null || !e.getFechaFin().isBefore(desde))
                 .filter(e -> hasta == null || !e.getFechaInicio().isAfter(hasta))
                 .filter(e -> activa == null || e.isActiva() == activa)
-                .sorted(Comparator.comparing(ExcepcionAgenda::getFechaInicio).thenComparing(ExcepcionAgenda::getId))
+                .sorted(Comparator.comparing(ExcepcionAgenda::getFechaInicio, Comparator.reverseOrder())
+                        .thenComparing(Comparator.comparing(ExcepcionAgenda::getId, Comparator.reverseOrder())))
                 .map(ExcepcionAgendaResponseDto::from)
                 .toList());
     }

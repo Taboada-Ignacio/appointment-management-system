@@ -4,6 +4,8 @@ import { gapsToSignalSegments, timeToMinutes } from '../../utils/gaps';
 
 export const AvailabilitySignal = ({ 
   brechas = [], 
+  bloqueos = [],
+  bloqueosHorario = [],
   dayStart = '07:00', 
   dayEnd = '21:00', 
   variant = 'compact',
@@ -14,10 +16,11 @@ export const AvailabilitySignal = ({
   className = ''
 }) => {
   const isSummary = totalMinutes !== undefined;
+  const effectiveBloqueos = (bloqueos && bloqueos.length > 0) ? bloqueos : (bloqueosHorario || []);
 
   const segments = useMemo(() => 
-    isSummary ? [] : gapsToSignalSegments(brechas, dayStart, dayEnd),
-  [isSummary, brechas, dayStart, dayEnd]);
+    isSummary ? [] : gapsToSignalSegments(brechas, dayStart, dayEnd, effectiveBloqueos),
+  [isSummary, brechas, dayStart, dayEnd, effectiveBloqueos]);
 
   if (isSummary) {
     const percentage = maxMinutes > 0 ? (totalMinutes / maxMinutes) * 100 : 0;
@@ -57,15 +60,26 @@ export const AvailabilitySignal = ({
           const segEnd = timeToMinutes(seg.end);
           const width = ((segEnd - segStart) / totalMin) * 100;
           
+          let segColorClass = "bg-muted";
+          let segTitle = `Ocupado/Inactivo: ${seg.start} - ${seg.end}`;
+
+          if (seg.isBlocked || seg.status === 'blocked') {
+            segColorClass = "bg-orange-500 hover:brightness-95";
+            segTitle = `Bloqueado: ${seg.start} - ${seg.end}`;
+          } else if (seg.isAvailable || seg.status === 'available') {
+            segColorClass = "bg-ring hover:brightness-95";
+            segTitle = `Disponible: ${seg.start} - ${seg.end}`;
+          }
+
           return (
             <div
               key={idx}
               style={{ width: `${width}%` }}
               className={cn(
                 "h-full transition-colors group relative",
-                seg.isAvailable ? "bg-ring hover:brightness-95" : "bg-muted"
+                segColorClass
               )}
-              title={seg.isAvailable ? `Disponible: ${seg.start} - ${seg.end}` : `Ocupado/Inactivo: ${seg.start} - ${seg.end}`}
+              title={segTitle}
             />
           );
         })}

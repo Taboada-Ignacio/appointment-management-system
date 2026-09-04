@@ -36,5 +36,32 @@ describe('AvailabilitySignal Component', () => {
     const summary = screen.getByRole('img', { name: /Disponibilidad: 20%/i });
     expect(summary).toBeInTheDocument();
   });
+
+  it('renders blocked segments in orange and reflects feasible availability difference', () => {
+    const brechas = [{ horaInicio: '09:00', horaFin: '13:00' }];
+    const bloqueos = [{ horaInicio: '10:00', horaFin: '11:00' }];
+
+    const { container } = render(
+      <AvailabilitySignal
+        brechas={brechas}
+        bloqueos={bloqueos}
+        dayStart="08:00"
+        dayEnd="14:00"
+      />
+    );
+
+    // Blocked segment
+    const blockedSegment = container.querySelector('[title="Bloqueado: 10:00 - 11:00"]');
+    expect(blockedSegment).toBeInTheDocument();
+    expect(blockedSegment.className).toContain('bg-orange-500');
+
+    // Feasible available segments
+    const firstAvailable = container.querySelector('[title="Disponible: 09:00 - 10:00"]');
+    const secondAvailable = container.querySelector('[title="Disponible: 11:00 - 13:00"]');
+    expect(firstAvailable).toBeInTheDocument();
+    expect(firstAvailable.className).toContain('bg-ring');
+    expect(secondAvailable).toBeInTheDocument();
+    expect(secondAvailable.className).toContain('bg-ring');
+  });
 });
 

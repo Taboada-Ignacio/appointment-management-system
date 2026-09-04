@@ -3,7 +3,7 @@ import { Trash2, Plus, AlertCircle } from 'lucide-react';
 import { validateGaps, sortGaps, emptyGap } from '../../../utils/gaps';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { TimeWheelPicker } from '@/components/ui/TimeWheelPicker';
 
 export function GapEditor({ gaps = [], onChange, readOnly = false, maxGaps = 8 }) {
   const [localErrors, setLocalErrors] = useState([]);
@@ -42,24 +42,22 @@ export function GapEditor({ gaps = [], onChange, readOnly = false, maxGaps = 8 }
           {gaps.map((gap, index) => (
             <div key={index} className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                <Input
-                  type="time"
-                  step="900"
+                <TimeWheelPicker
                   value={gap.horaInicio || ''}
-                  onChange={(e) => handleFieldChange(index, 'horaInicio', e.target.value)}
+                  onChange={(val) => handleFieldChange(index, 'horaInicio', val)}
                   disabled={readOnly}
+                  minuteStep={15}
                   className="w-28 font-medium tabular-nums"
                   aria-label={`Brecha ${index + 1}: Hora de inicio`}
                 />
                 <span className="text-xs font-bold text-muted-foreground" aria-hidden="true">
                   –
                 </span>
-                <Input
-                  type="time"
-                  step="900"
+                <TimeWheelPicker
                   value={gap.horaFin || ''}
-                  onChange={(e) => handleFieldChange(index, 'horaFin', e.target.value)}
+                  onChange={(val) => handleFieldChange(index, 'horaFin', val)}
                   disabled={readOnly}
+                  minuteStep={15}
                   className="w-28 font-medium tabular-nums"
                   aria-label={`Brecha ${index + 1}: Hora de fin`}
                 />

@@ -100,23 +100,120 @@ export function validateGaps(brechas) {
 }
 
 /**
+ * Format a time string to 'HH:mm', safely handling 'HH:mm:ss'.
+ * @param {string} time
+ * @returns {string}
+ */
+export function formatTime(time) {
+  if (!time || typeof time !== 'string') return '';
+  const trimmed = time.trim();
+  if (trimmed.length >= 5) {
+    return trimmed.slice(0, 5);
+  }
+  return trimmed;
+}
+
+/**
  * Format a time range for display: "09:00 – 13:00"
  * @param {string} horaInicio
  * @param {string} horaFin
  * @returns {string}
  */
 export function formatTimeRange(horaInicio, horaFin) {
-  return `${horaInicio || '—'} – ${horaFin || '—'}`;
+  const start = formatTime(horaInicio);
+  const end = formatTime(horaFin);
+  return `${start || '—'} – ${end || '—'}`;
 }
 
 /**
- * Calculate total available minutes from gaps.
+ * Subtract blocked time intervals (bloqueos) from schedule gaps (brechas).
+ * Returns the effective available intervals where appointments can actually be booked.
  * @param {Array<{horaInicio: string, horaFin: string}>} brechas
+ * @param {Array<{horaInicio: string, horaFin: string}>} [bloqueos=[]]
+ * @returns {Array<{horaInicio: string, horaFin: string}>}
+ */
+export function subtractGaps(brechas = [], bloqueos = []) {
+  if (!brechas || brechas.length === 0) return [];
+  if (!bloqueos || bloqueos.length === 0) return sortGaps(brechas);
+
+  // Filter and merge overlapping/adjacent bloqueos
+  const validBloqueos = bloqueos
+    .filter((b) => b && b.horaInicio && b.horaFin)
+    .map((b) => ({
+      start: timeToMinutes(b.horaInicio),
+      end: timeToMinutes(b.horaFin),
+    }))
+    .filter((b) => b.end > b.start)
+    .sort((a, b) => a.start - b.start);
+
+  if (validBloqueos.length === 0) return sortGaps(brechas);
+
+  const mergedBloqueos = [];
+  for (const b of validBloqueos) {
+    if (mergedBloqueos.length === 0) {
+      mergedBloqueos.push({ ...b });
+    } else {
+      const prev = mergedBloqueos[mergedBloqueos.length - 1];
+      if (b.start <= prev.end) {
+        prev.end = Math.max(prev.end, b.end);
+      } else {
+        mergedBloqueos.push({ ...b });
+      }
+    }
+  }
+
+  const sortedBrechas = sortGaps(brechas);
+  const result = [];
+
+  for (const brecha of sortedBrechas) {
+    const bStart = timeToMinutes(brecha.horaInicio);
+    const bEnd = timeToMinutes(brecha.horaFin);
+    if (bEnd <= bStart) continue;
+
+    let cursor = bStart;
+
+    for (const bloqueo of mergedBloqueos) {
+      if (bloqueo.end <= cursor) continue;
+      if (bloqueo.start >= bEnd) break;
+
+      if (cursor < bloqueo.start) {
+        const segEnd = Math.min(bloqueo.start, bEnd);
+        if (segEnd > cursor) {
+          result.push({
+            horaInicio: minutesToTime(cursor),
+            horaFin: minutesToTime(segEnd),
+          });
+        }
+      }
+
+      if (bloqueo.end > cursor) {
+        cursor = bloqueo.end;
+      }
+
+      if (cursor >= bEnd) break;
+    }
+
+    if (cursor < bEnd) {
+      result.push({
+        horaInicio: minutesToTime(cursor),
+        horaFin: minutesToTime(bEnd),
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Calculate total available minutes from gaps, optionally discounting blocks.
+ * @param {Array<{horaInicio: string, horaFin: string}>} brechas
+ * @param {Array<{horaInicio: string, horaFin: string}>} [bloqueos=[]]
  * @returns {number}
  */
-export function totalAvailableMinutes(brechas) {
+export function totalAvailableMinutes(brechas, bloqueos = []) {
   if (!brechas || brechas.length === 0) return 0;
-  return brechas.reduce((total, gap) => {
+  const effectiveGaps = bloqueos && bloqueos.length > 0 ? subtractGaps(brechas, bloqueos) : brechas;
+  return effectiveGaps.reduce((total, gap) => {
     const start = timeToMinutes(gap.horaInicio);
     const end = timeToMinutes(gap.horaFin);
     return total + Math.max(0, end - start);
@@ -124,46 +221,97 @@ export function totalAvailableMinutes(brechas) {
 }
 
 /**
- * Convert gaps to availability signal segments for the AvailabilitySignal component.
- * Returns array of { start, end, isAvailable } segments covering the full day range.
+ * Convert gaps and schedule blocks to availability signal segments for the AvailabilitySignal component.
+ * Returns array of { start, end, isAvailable, isBlocked, status } segments covering the full day range.
  * @param {Array<{horaInicio: string, horaFin: string}>} brechas
  * @param {string} [dayStart='07:00']
  * @param {string} [dayEnd='21:00']
- * @returns {Array<{start: string, end: string, isAvailable: boolean}>}
+ * @param {Array<{horaInicio: string, horaFin: string}>} [bloqueos=[]]
+ * @returns {Array<{start: string, end: string, isAvailable: boolean, isBlocked: boolean, status: string}>}
  */
-export function gapsToSignalSegments(brechas, dayStart = '07:00', dayEnd = '21:00') {
+export function gapsToSignalSegments(brechas, dayStart = '07:00', dayEnd = '21:00', bloqueos = []) {
   const startMin = timeToMinutes(dayStart);
   const endMin = timeToMinutes(dayEnd);
 
-  if (!brechas || brechas.length === 0) {
-    return [{ start: dayStart, end: dayEnd, isAvailable: false }];
+  if (endMin <= startMin) return [];
+
+  const effectiveGaps = subtractGaps(brechas, bloqueos);
+
+  const validBloqueos = (bloqueos || [])
+    .filter((b) => b && b.horaInicio && b.horaFin)
+    .map((b) => ({
+      start: Math.max(timeToMinutes(b.horaInicio), startMin),
+      end: Math.min(timeToMinutes(b.horaFin), endMin),
+    }))
+    .filter((b) => b.end > b.start)
+    .sort((a, b) => a.start - b.start);
+
+  const mergedBloqueos = [];
+  for (const b of validBloqueos) {
+    if (mergedBloqueos.length === 0) {
+      mergedBloqueos.push({ ...b });
+    } else {
+      const prev = mergedBloqueos[mergedBloqueos.length - 1];
+      if (b.start <= prev.end) {
+        prev.end = Math.max(prev.end, b.end);
+      } else {
+        mergedBloqueos.push({ ...b });
+      }
+    }
   }
 
-  const sorted = sortGaps(brechas);
+  const markedIntervals = [];
+
+  for (const gap of effectiveGaps) {
+    const gStart = Math.max(timeToMinutes(gap.horaInicio), startMin);
+    const gEnd = Math.min(timeToMinutes(gap.horaFin), endMin);
+    if (gEnd > gStart) {
+      markedIntervals.push({
+        start: gStart,
+        end: gEnd,
+        status: 'available',
+      });
+    }
+  }
+
+  for (const b of mergedBloqueos) {
+    if (b.end > b.start) {
+      markedIntervals.push({
+        start: b.start,
+        end: b.end,
+        status: 'blocked',
+      });
+    }
+  }
+
+  markedIntervals.sort((a, b) => a.start - b.start);
+
   const segments = [];
   let currentMin = startMin;
 
-  for (const gap of sorted) {
-    const gapStart = Math.max(timeToMinutes(gap.horaInicio), startMin);
-    const gapEnd = Math.min(timeToMinutes(gap.horaFin), endMin);
-
-    if (gapStart > endMin || gapEnd < startMin) continue;
-
-    if (gapStart > currentMin) {
+  for (const interval of markedIntervals) {
+    if (interval.start > currentMin) {
       segments.push({
         start: minutesToTime(currentMin),
-        end: minutesToTime(gapStart),
+        end: minutesToTime(interval.start),
         isAvailable: false,
+        isBlocked: false,
+        status: 'inactive',
       });
     }
 
-    if (gapEnd > currentMin) {
-      segments.push({
-        start: minutesToTime(Math.max(currentMin, gapStart)),
-        end: minutesToTime(gapEnd),
-        isAvailable: true,
-      });
-      currentMin = gapEnd;
+    if (interval.end > currentMin) {
+      const effectiveStart = Math.max(currentMin, interval.start);
+      if (interval.end > effectiveStart) {
+        segments.push({
+          start: minutesToTime(effectiveStart),
+          end: minutesToTime(interval.end),
+          isAvailable: interval.status === 'available',
+          isBlocked: interval.status === 'blocked',
+          status: interval.status,
+        });
+      }
+      currentMin = Math.max(currentMin, interval.end);
     }
   }
 
@@ -172,6 +320,8 @@ export function gapsToSignalSegments(brechas, dayStart = '07:00', dayEnd = '21:0
       start: minutesToTime(currentMin),
       end: minutesToTime(endMin),
       isAvailable: false,
+      isBlocked: false,
+      status: 'inactive',
     });
   }
 
