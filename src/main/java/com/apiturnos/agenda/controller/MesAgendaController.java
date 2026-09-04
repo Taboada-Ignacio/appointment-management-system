@@ -8,11 +8,13 @@ import com.apiturnos.agenda.repository.AgendaAnualRepository;
 import com.apiturnos.agenda.repository.BrechaHorariaRepository;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.agenda.repository.MesAgendaRepository;
+import com.apiturnos.agenda.repository.ExcepcionAgendaRepository;
 import com.apiturnos.agenda.service.*;
 import com.apiturnos.estado.model.AmbitoEstado;
 import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.shared.exception.ClienteNoPerteneceProfesionalException;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
+import com.apiturnos.turno.repository.TurnoRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/profesionales/{profesionalId}/meses-agenda")
@@ -33,6 +36,8 @@ public class MesAgendaController {
     private final DiaAgendaRepository diaAgendaRepository;
     private final BrechaHorariaRepository brechaHorariaRepository;
     private final GestorCambioEstado gestorCambioEstado;
+    private final TurnoRepository turnoRepository;
+    private final ExcepcionAgendaRepository excepcionAgendaRepository;
 
     private final ConfigurarMesAgenda configurarMesAgenda;
     private final ConfigurarMesModoSemana configurarMesModoSemana;
@@ -46,6 +51,8 @@ public class MesAgendaController {
                                DiaAgendaRepository diaAgendaRepository,
                                BrechaHorariaRepository brechaHorariaRepository,
                                GestorCambioEstado gestorCambioEstado,
+                               TurnoRepository turnoRepository,
+                               ExcepcionAgendaRepository excepcionAgendaRepository,
                                ConfigurarMesAgenda configurarMesAgenda,
                                ConfigurarMesModoSemana configurarMesModoSemana,
                                ConfigurarMesModoMes configurarMesModoMes,
@@ -57,6 +64,8 @@ public class MesAgendaController {
         this.diaAgendaRepository = diaAgendaRepository;
         this.brechaHorariaRepository = brechaHorariaRepository;
         this.gestorCambioEstado = gestorCambioEstado;
+        this.turnoRepository = turnoRepository;
+        this.excepcionAgendaRepository = excepcionAgendaRepository;
         this.configurarMesAgenda = configurarMesAgenda;
         this.configurarMesModoSemana = configurarMesModoSemana;
         this.configurarMesModoMes = configurarMesModoMes;
@@ -195,12 +204,29 @@ public class MesAgendaController {
 
         Map<Long, String> estadosDiasMap = gestorCambioEstado.obtenerEstadosActualesPorEntidades(
                 AmbitoEstado.DIA_AGENDA, diaIds);
+        Map<Long, Long> turnosPorDia = (diaIds.isEmpty() ? List.<com.apiturnos.turno.model.Turno>of()
+                : turnoRepository.findByDiaAgendaIdIn(diaIds)).stream()
+                .collect(Collectors.groupingBy(turno -> turno.getDiaAgenda().getId(), Collectors.counting()));
+        Long profesionalId = mes.getAgendaAnual().getProfesional().getId();
+        var excepciones = dias.isEmpty() ? List.<com.apiturnos.agenda.model.ExcepcionAgenda>of()
+                : excepcionAgendaRepository.findActivasIntersectandoRango(
+                        profesionalId,
+                        dias.stream().map(DiaAgenda::getFecha).min(Comparator.naturalOrder()).orElseThrow(),
+                        dias.stream().map(DiaAgenda::getFecha).max(Comparator.naturalOrder()).orElseThrow());
 
         List<DiaAgendaResumenResponseDto> diasDto = dias.stream()
                 .sorted(Comparator.comparing(DiaAgenda::getFecha))
                 .map(dia -> {
                     int cantBrechas = brechaHorariaRepository.findByDiaAgendaId(dia.getId()).size();
-                    return new DiaAgendaResumenResponseDto(dia, cantBrechas, estadosDiasMap.get(dia.getId()));
+                    var tiposExcepcion = excepciones.stream()
+                            .filter(com.apiturnos.agenda.model.ExcepcionAgenda::isActiva)
+                            .filter(excepcion -> excepcion.aplicaEn(dia.getFecha()))
+                            .map(com.apiturnos.agenda.model.ExcepcionAgenda::getTipo)
+                            .distinct()
+                            .toList();
+                    return new DiaAgendaResumenResponseDto(dia, cantBrechas,
+                            turnosPorDia.getOrDefault(dia.getId(), 0L).intValue(), tiposExcepcion,
+                            estadosDiasMap.get(dia.getId()));
                 })
                 .toList();
 

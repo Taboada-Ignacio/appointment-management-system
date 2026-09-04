@@ -23,6 +23,19 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(ExcepcionAgendaSuperpuestaException.class)
+    public ResponseEntity<Map<String, Object>> handleExcepcionAgendaSuperpuesta(
+            ExcepcionAgendaSuperpuestaException ex, HttpServletRequest request) {
+        log.warn("Superposición de excepciones en {}: {}", request.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "status", HttpStatus.CONFLICT.value(),
+                "error", HttpStatus.CONFLICT.getReasonPhrase(),
+                "codigo", "EXCEPCION_AGENDA_SUPERPUESTA",
+                "message", ex.getMessage(),
+                "path", request.getRequestURI(),
+                "coincidencias", ex.getCoincidencias()));
+    }
+
     @ExceptionHandler(EntidadNoEncontradaException.class)
     public ResponseEntity<ErrorResponseDto> handleEntidadNoEncontrada(
             EntidadNoEncontradaException ex, HttpServletRequest request) {

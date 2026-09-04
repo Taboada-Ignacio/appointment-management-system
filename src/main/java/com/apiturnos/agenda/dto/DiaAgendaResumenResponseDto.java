@@ -1,6 +1,7 @@
 package com.apiturnos.agenda.dto;
 
 import com.apiturnos.agenda.model.DiaAgenda;
+import com.apiturnos.agenda.model.TipoExcepcion;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -8,6 +9,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
 import java.util.Locale;
+import java.util.List;
 
 public class DiaAgendaResumenResponseDto {
 
@@ -20,12 +22,19 @@ public class DiaAgendaResumenResponseDto {
     private DayOfWeek diaSemana;
     private String nombreDiaSemana;
     private int cantidadBrechas;
+    private int cantidadTurnosAsignados;
+    private List<TipoExcepcion> tiposExcepcion;
     private String estadoActual;
 
     public DiaAgendaResumenResponseDto() {
     }
 
     public DiaAgendaResumenResponseDto(DiaAgenda dia, int cantidadBrechas, String estadoActual) {
+        this(dia, cantidadBrechas, 0, List.of(), estadoActual);
+    }
+
+    public DiaAgendaResumenResponseDto(DiaAgenda dia, int cantidadBrechas, int cantidadTurnosAsignados,
+                                       List<TipoExcepcion> tiposExcepcion, String estadoActual) {
         if (dia != null) {
             this.id = dia.getId();
             this.fecha = dia.getFecha();
@@ -35,6 +44,8 @@ public class DiaAgendaResumenResponseDto {
             }
         }
         this.cantidadBrechas = cantidadBrechas;
+        this.cantidadTurnosAsignados = cantidadTurnosAsignados;
+        this.tiposExcepcion = tiposExcepcion != null ? List.copyOf(tiposExcepcion) : List.of();
         this.estadoActual = estadoActual;
     }
 
@@ -76,6 +87,22 @@ public class DiaAgendaResumenResponseDto {
 
     public void setCantidadBrechas(int cantidadBrechas) {
         this.cantidadBrechas = cantidadBrechas;
+    }
+
+    public int getCantidadTurnosAsignados() {
+        return cantidadTurnosAsignados;
+    }
+
+    public void setCantidadTurnosAsignados(int cantidadTurnosAsignados) {
+        this.cantidadTurnosAsignados = cantidadTurnosAsignados;
+    }
+
+    public List<TipoExcepcion> getTiposExcepcion() {
+        return tiposExcepcion;
+    }
+
+    public void setTiposExcepcion(List<TipoExcepcion> tiposExcepcion) {
+        this.tiposExcepcion = tiposExcepcion != null ? List.copyOf(tiposExcepcion) : List.of();
     }
 
     public String getEstadoActual() {

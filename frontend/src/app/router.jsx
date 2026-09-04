@@ -5,6 +5,7 @@ import { MyWeekPage } from '../features/professional/pages/MyWeekPage';
 import { MyMonthPage } from '../features/professional/pages/MyMonthPage';
 import { MyYearPage } from '../features/professional/pages/MyYearPage';
 import { SettingsPage } from '../features/professional/pages/SettingsPage';
+import { AbsenceManagementPage } from '../features/professional/pages/AbsenceManagementPage';
 import { NotFoundPage } from '../features/professional/pages/NotFoundPage';
 
 /**
@@ -26,6 +27,10 @@ export function createRoutes() {
         { path: 'mi-semana', element: <MyWeekPage /> },
         { path: 'mi-mes', element: <MyMonthPage /> },
         { path: 'mi-anio', element: <MyYearPage /> },
+        { path: 'ausencias', element: <Navigate to="/profesional/ausencias/registrar" replace /> },
+        { path: 'ausencias/registrar', element: <AbsenceManagementPage section="register" /> },
+        { path: 'ausencias/excepciones', element: <AbsenceManagementPage section="exceptions" /> },
+        { path: 'turnos-afectados', element: <AbsenceManagementPage section="affected" /> },
         { path: 'configuracion', element: <SettingsPage /> },
       ],
     },

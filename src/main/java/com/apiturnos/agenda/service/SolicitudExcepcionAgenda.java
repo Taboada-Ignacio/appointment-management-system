@@ -14,6 +14,7 @@ public record SolicitudExcepcionAgenda(
         LocalTime horaInicio,
         LocalTime horaFin,
         List<IntervaloHorario> brechas,
+        List<LocalDate> fechasExcluidas,
         String motivo) {
 
     public SolicitudExcepcionAgenda(
@@ -31,7 +32,19 @@ public record SolicitudExcepcionAgenda(
                 (horaInicio != null && horaFin != null && horaInicio.isBefore(horaFin))
                         ? List.of(new IntervaloHorario(horaInicio, horaFin))
                         : List.of(),
-                motivo);
+                List.of(), motivo);
+    }
+
+    public SolicitudExcepcionAgenda(
+            LocalDate fechaInicio,
+            LocalDate fechaFin,
+            TipoExcepcion tipo,
+            LocalTime horaInicio,
+            LocalTime horaFin,
+            List<IntervaloHorario> brechas,
+            String motivo) {
+        this(fechaInicio, fechaFin, tipo, horaInicio, horaFin,
+                brechas == null ? List.of() : List.copyOf(brechas), List.of(), motivo);
     }
 
     public SolicitudExcepcionAgenda(
@@ -45,8 +58,7 @@ public record SolicitudExcepcionAgenda(
                 tipo,
                 (brechas != null && !brechas.isEmpty()) ? brechas.getFirst().inicio() : null,
                 (brechas != null && !brechas.isEmpty()) ? brechas.getLast().fin() : null,
-                (brechas != null) ? List.copyOf(brechas) : List.of(),
-                motivo);
+                (brechas != null) ? List.copyOf(brechas) : List.of(), List.of(), motivo);
     }
 
     public List<IntervaloHorario> obtenerIntervalos() {

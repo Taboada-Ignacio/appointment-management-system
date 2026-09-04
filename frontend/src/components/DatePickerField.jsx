@@ -1,4 +1,5 @@
 import { CalendarIcon } from 'lucide-react';
+import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
@@ -53,6 +54,8 @@ export function DatePickerField({ id, label, value, onChange, min, max, disabled
               endMonth={maxDate}
               disabled={{ before: minDate, after: maxDate }}
               captionLayout="dropdown"
+              locale={es}
+              weekStartsOn={1}
             />
           </PopoverContent>
         </Popover>

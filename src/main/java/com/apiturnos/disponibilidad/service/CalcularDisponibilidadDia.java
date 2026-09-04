@@ -78,8 +78,7 @@ public class CalcularDisponibilidadDia {
 
         List<ExcepcionAgenda> aplicables = excepciones.stream()
                 .filter(ExcepcionAgenda::isActiva)
-                .filter(excepcion -> !dia.getFecha().isBefore(excepcion.getFechaInicio()))
-                .filter(excepcion -> !dia.getFecha().isAfter(excepcion.getFechaFin()))
+                .filter(excepcion -> excepcion.aplicaEn(dia.getFecha()))
                 .toList();
 
         return calculador.calcular(base, aplicables);

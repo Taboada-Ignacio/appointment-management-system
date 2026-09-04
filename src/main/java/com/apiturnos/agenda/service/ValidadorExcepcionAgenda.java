@@ -25,6 +25,21 @@ public class ValidadorExcepcionAgenda {
         if (solicitud.motivo() == null || solicitud.motivo().isBlank()) {
             throw new ExcepcionAgendaInvalidaException("El motivo de la excepción es obligatorio");
         }
+        if (solicitud.fechasExcluidas() != null) {
+            if (solicitud.tipo() == com.apiturnos.agenda.model.TipoExcepcion.VACACIONES
+                    && !solicitud.fechasExcluidas().isEmpty()) {
+                throw new ExcepcionAgendaInvalidaException("Las vacaciones incluyen todos los días del rango");
+            }
+            if (solicitud.fechasExcluidas().stream().anyMatch(fecha -> fecha == null
+                    || fecha.isBefore(solicitud.fechaInicio()) || fecha.isAfter(solicitud.fechaFin()))) {
+                throw new ExcepcionAgendaInvalidaException("Las fechas excluidas deben pertenecer al rango");
+            }
+            long diasRango = java.time.temporal.ChronoUnit.DAYS.between(
+                    solicitud.fechaInicio(), solicitud.fechaFin()) + 1;
+            if (solicitud.fechasExcluidas().stream().distinct().count() >= diasRango) {
+                throw new ExcepcionAgendaInvalidaException("La excepción debe incluir al menos una fecha");
+            }
+        }
 
         boolean tieneInicio = solicitud.horaInicio() != null;
         boolean tieneFin = solicitud.horaFin() != null;

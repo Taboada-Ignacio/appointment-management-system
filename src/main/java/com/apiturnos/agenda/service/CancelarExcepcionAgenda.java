@@ -13,11 +13,14 @@ public class CancelarExcepcionAgenda {
 
     private final ExcepcionAgendaRepository excepcionAgendaRepository;
     private final RegistradorAuditoria registradorAuditoria;
+    private final SincronizarEstadoDiasPorExcepcion sincronizarDias;
 
     public CancelarExcepcionAgenda(ExcepcionAgendaRepository excepcionAgendaRepository,
-                                    RegistradorAuditoria registradorAuditoria) {
+                                    RegistradorAuditoria registradorAuditoria,
+                                    SincronizarEstadoDiasPorExcepcion sincronizarDias) {
         this.excepcionAgendaRepository = excepcionAgendaRepository;
         this.registradorAuditoria = registradorAuditoria;
+        this.sincronizarDias = sincronizarDias;
     }
 
     @Transactional
@@ -27,8 +30,10 @@ public class CancelarExcepcionAgenda {
                 .orElseThrow(() -> new EntidadNoEncontradaException("ExcepcionAgenda", excepcionId));
 
         if (excepcion.isActiva()) {
+            var fechasAfectadas = SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion);
             excepcion.setActiva(false);
             excepcion = excepcionAgendaRepository.save(excepcion);
+            sincronizarDias.reconciliar(profesionalId, fechasAfectadas, usuario);
             registradorAuditoria.registrar(
                     "AGENDA",
                     "ExcepcionAgenda",

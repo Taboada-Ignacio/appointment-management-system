@@ -24,11 +24,18 @@ public class DiaAgendaDetalleResponseDto {
     private String nombreDiaSemana;
     private String estadoActual;
     private List<BrechaHorariaResponseDto> brechas = new ArrayList<>();
+    private List<BrechaExcepcionResponseDto> bloqueosHorario = new ArrayList<>();
 
     public DiaAgendaDetalleResponseDto() {
     }
 
     public DiaAgendaDetalleResponseDto(DiaAgenda dia, String estadoActual, List<BrechaHorariaResponseDto> brechas) {
+        this(dia, estadoActual, brechas, List.of());
+    }
+
+    public DiaAgendaDetalleResponseDto(DiaAgenda dia, String estadoActual,
+                                       List<BrechaHorariaResponseDto> brechas,
+                                       List<BrechaExcepcionResponseDto> bloqueosHorario) {
         if (dia != null) {
             this.id = dia.getId();
             this.mesAgendaId = dia.getMesAgenda() != null ? dia.getMesAgenda().getId() : null;
@@ -40,6 +47,7 @@ public class DiaAgendaDetalleResponseDto {
         }
         this.estadoActual = estadoActual;
         this.brechas = brechas != null ? brechas : new ArrayList<>();
+        this.bloqueosHorario = bloqueosHorario != null ? bloqueosHorario : new ArrayList<>();
     }
 
     public Long getId() {
@@ -96,6 +104,14 @@ public class DiaAgendaDetalleResponseDto {
 
     public void setBrechas(List<BrechaHorariaResponseDto> brechas) {
         this.brechas = brechas;
+    }
+
+    public List<BrechaExcepcionResponseDto> getBloqueosHorario() {
+        return bloqueosHorario;
+    }
+
+    public void setBloqueosHorario(List<BrechaExcepcionResponseDto> bloqueosHorario) {
+        this.bloqueosHorario = bloqueosHorario != null ? bloqueosHorario : new ArrayList<>();
     }
 }
 

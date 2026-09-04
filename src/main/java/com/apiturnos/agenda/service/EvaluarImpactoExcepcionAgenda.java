@@ -66,26 +66,39 @@ public class EvaluarImpactoExcepcionAgenda {
     }
 
     public List<Turno> ejecutar(ExcepcionAgenda excepcion, String usuario) {
+        List<Turno> afectados = previsualizar(excepcion);
+        procesarBajas.ejecutar(excepcion, afectados, usuario);
+        return afectados;
+    }
+
+    /**
+     * Calcula los turnos que quedarían fuera de la disponibilidad efectiva sin
+     * persistir estados, motivos, auditorías ni notificaciones.
+     */
+    public List<Turno> previsualizar(ExcepcionAgenda excepcion) {
         // Habilitación extraordinaria nunca da de baja turnos existentes
         if (excepcion.getTipo() == TipoExcepcion.HABILITACION_EXTRAORDINARIA) {
             return List.of();
         }
 
         Long profesionalId = excepcion.getProfesional().getId();
+        if (excepcion.getFechaInicio().equals(excepcion.getFechaFin())
+                && !excepcion.aplicaEn(excepcion.getFechaInicio())) {
+            return List.of();
+        }
 
         // Optimización para BLOQUEO_HORARIO de un único día: query directa de intersección
         if (excepcion.getTipo().esBloqueoHorario()
                 && excepcion.getFechaInicio().equals(excepcion.getFechaFin())
                 && !excepcion.obtenerIntervalos().isEmpty()) {
-            return evaluarImpactoBloqueoDirecto(excepcion, usuario, profesionalId);
+            return evaluarImpactoBloqueoDirecto(excepcion, profesionalId);
         }
 
-        return evaluarImpactoPorDisponibilidadGeneral(excepcion, usuario, profesionalId);
+        return evaluarImpactoPorDisponibilidadGeneral(excepcion, profesionalId);
     }
 
     private List<Turno> evaluarImpactoBloqueoDirecto(
             ExcepcionAgenda excepcion,
-            String usuario,
             Long profesionalId) {
 
         LocalDate fecha = excepcion.getFechaInicio();
@@ -113,13 +126,11 @@ public class EvaluarImpactoExcepcionAgenda {
                 .filter(t -> ESTADOS_AFECTABLES.contains(estadosTurnos.get(t.getId())))
                 .toList();
 
-        procesarBajas.ejecutar(excepcion, afectados, usuario);
         return List.copyOf(afectados);
     }
 
     private List<Turno> evaluarImpactoPorDisponibilidadGeneral(
             ExcepcionAgenda excepcion,
-            String usuario,
             Long profesionalId) {
 
         List<DiaAgenda> dias = diaAgendaRepository.findByProfesionalIdAndFechaBetween(
@@ -135,9 +146,13 @@ public class EvaluarImpactoExcepcionAgenda {
                 .collect(Collectors.groupingBy(brecha -> brecha.getDiaAgenda().getId()));
         Map<Long, String> estadosDias = gestorCambioEstado.obtenerEstadosActualesPorEntidades(
                 AmbitoEstado.DIA_AGENDA, diaIds);
-        List<ExcepcionAgenda> excepcionesRango = excepcionAgendaRepository
+        List<ExcepcionAgenda> excepcionesRangoPersistidas = excepcionAgendaRepository
                 .findActivasIntersectandoRango(
                         profesionalId, excepcion.getFechaInicio(), excepcion.getFechaFin());
+        List<ExcepcionAgenda> excepcionesRango = new ArrayList<>(excepcionesRangoPersistidas.stream()
+                .filter(actual -> excepcion.getId() == null || !excepcion.getId().equals(actual.getId()))
+                .toList());
+        excepcionesRango.add(excepcion);
 
         Map<LocalDate, List<IntervaloHorario>> disponibilidadPorFecha = new HashMap<>();
         for (DiaAgenda dia : dias) {
@@ -162,6 +177,9 @@ public class EvaluarImpactoExcepcionAgenda {
 
         List<Turno> afectados = new ArrayList<>();
         for (Turno turno : turnosRango) {
+            if (!excepcion.aplicaEn(turno.getDiaAgenda().getFecha())) {
+                continue;
+            }
             if (!ESTADOS_AFECTABLES.contains(estadosTurnos.get(turno.getId()))) {
                 continue;
             }
@@ -172,7 +190,6 @@ public class EvaluarImpactoExcepcionAgenda {
             }
         }
 
-        procesarBajas.ejecutar(excepcion, afectados, usuario);
         return List.copyOf(afectados);
     }
 }

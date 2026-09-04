@@ -84,6 +84,8 @@ describe('Professional component accessibility and contract honesty', () => {
             fecha: '2027-02-15',
             estadoActual: null,
             cantidadBrechas: 2,
+            cantidadTurnosAsignados: 3,
+            tiposExcepcion: ['VACACIONES'],
           },
         ]}
         onSelectDay={onSelectDay}
@@ -91,7 +93,9 @@ describe('Professional component accessibility and contract honesty', () => {
     );
 
     expect(screen.getAllByText('Inactivo')).toHaveLength(1);
-    expect(screen.getAllByText('2 franjas')).toHaveLength(1);
+    expect(screen.getAllByText('2 brechas')).toHaveLength(1);
+    expect(screen.getAllByText('3 turnos')).toHaveLength(1);
+    expect(screen.getByText('Vacaciones')).toBeInTheDocument();
 
     const day15 = screen.getByRole('gridcell', { name: /15 de Febrero de 2027/i });
     const day16 = screen.getByRole('gridcell', { name: /16 de Febrero de 2027/i });

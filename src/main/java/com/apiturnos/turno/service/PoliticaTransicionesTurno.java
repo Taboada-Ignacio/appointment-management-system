@@ -18,6 +18,7 @@ public class PoliticaTransicionesTurno {
     public static final String REPROGRAMADO = "REPROGRAMADO";
     public static final String CANCELADO = "CANCELADO";
     public static final String DADO_DE_BAJA = "DADO_DE_BAJA";
+    public static final String AFECTADO_POR_EXCEPCION = "AFECTADO_POR_EXCEPCION";
     public static final String ASISTIO = "COMPLETADO";
     public static final String AUSENTE = "NO_ASISTIO";
 
@@ -28,10 +29,11 @@ public class PoliticaTransicionesTurno {
             CANCELADO, DADO_DE_BAJA, ASISTIO, AUSENTE);
 
     private static final Map<String, Set<String>> TRANSICIONES = Map.of(
-            PENDIENTE_DE_APROBACION, Set.of(ASIGNADO, CANCELADO, DADO_DE_BAJA),
-            ASIGNADO, Set.of(REPROGRAMADO, CANCELADO, DADO_DE_BAJA, ASISTIO, AUSENTE, CONFIRMADO),
-            CONFIRMADO, Set.of(CANCELADO, DADO_DE_BAJA, ASISTIO, AUSENTE),
-            REPROGRAMADO, Set.of(ASIGNADO)
+            PENDIENTE_DE_APROBACION, Set.of(ASIGNADO, REPROGRAMADO, CANCELADO, DADO_DE_BAJA, AFECTADO_POR_EXCEPCION),
+            ASIGNADO, Set.of(REPROGRAMADO, CANCELADO, DADO_DE_BAJA, ASISTIO, AUSENTE, CONFIRMADO, AFECTADO_POR_EXCEPCION),
+            CONFIRMADO, Set.of(REPROGRAMADO, CANCELADO, DADO_DE_BAJA, ASISTIO, AUSENTE, AFECTADO_POR_EXCEPCION),
+            REPROGRAMADO, Set.of(ASIGNADO, AFECTADO_POR_EXCEPCION),
+            AFECTADO_POR_EXCEPCION, Set.of(ASIGNADO, PENDIENTE_DE_APROBACION, CONFIRMADO, REPROGRAMADO, DADO_DE_BAJA)
     );
 
     public void validarEstadoInicial(String estado, Long turnoId) {

@@ -17,7 +17,7 @@ import java.util.Set;
 public class VerificarCapacidadTipoAtencion {
 
     private static final Set<String> ESTADOS_ACTIVOS = Set.of(
-            "ASIGNADO", "PENDIENTE_DE_APROBACION", "CONFIRMADO", "REPROGRAMADO");
+            "ASIGNADO", "PENDIENTE_DE_APROBACION", "CONFIRMADO", "REPROGRAMADO", "AFECTADO_POR_EXCEPCION");
 
     private final TurnoRepository turnoRepository;
     private final GestorCambioEstado gestorCambioEstado;

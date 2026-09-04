@@ -158,7 +158,7 @@ export function MyMonthPage() {
         eyebrow="Vista mensual de atención"
         title="Mi mes"
         description={formatMonthYear(targetMonth, targetYear)}
-        status={<StatusBadge status={temporalStatus} />}
+        status={<div className="flex items-center gap-2"><span className="text-xs font-semibold text-muted-foreground">Estado del mes</span><StatusBadge status={temporalStatus} /></div>}
         actions={
           <div className="flex items-center gap-2">
             <Button

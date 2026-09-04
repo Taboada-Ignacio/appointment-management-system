@@ -25,17 +25,23 @@ public class AplicarExcepcionAgenda {
     private final ValidadorExcepcionAgenda validador;
     private final EvaluarImpactoExcepcionAgenda evaluarImpacto;
     private final RegistradorAuditoria registradorAuditoria;
+    private final DetectorCoincidenciasExcepcionAgenda detectorCoincidencias;
+    private final SincronizarEstadoDiasPorExcepcion sincronizarDias;
 
     public AplicarExcepcionAgenda(ExcepcionAgendaRepository excepcionAgendaRepository,
                                   ProfesionalRepository profesionalRepository,
                                   ValidadorExcepcionAgenda validador,
                                   EvaluarImpactoExcepcionAgenda evaluarImpacto,
-                                  RegistradorAuditoria registradorAuditoria) {
+                                  RegistradorAuditoria registradorAuditoria,
+                                  DetectorCoincidenciasExcepcionAgenda detectorCoincidencias,
+                                  SincronizarEstadoDiasPorExcepcion sincronizarDias) {
         this.excepcionAgendaRepository = excepcionAgendaRepository;
         this.profesionalRepository = profesionalRepository;
         this.validador = validador;
         this.evaluarImpacto = evaluarImpacto;
         this.registradorAuditoria = registradorAuditoria;
+        this.detectorCoincidencias = detectorCoincidencias;
+        this.sincronizarDias = sincronizarDias;
     }
 
     @Transactional
@@ -87,6 +93,14 @@ public class AplicarExcepcionAgenda {
     public ExcepcionAgenda ejecutar(Long profesionalId,
                                      SolicitudExcepcionAgenda solicitud,
                                      String usuario) {
+        return ejecutarConResultado(profesionalId, solicitud, usuario).excepcion();
+    }
+
+    @Transactional
+    public ResultadoAplicacionExcepcionAgenda ejecutarConResultado(
+            Long profesionalId,
+            SolicitudExcepcionAgenda solicitud,
+            String usuario) {
         validador.validar(solicitud);
         Profesional profesional = profesionalRepository.findById(profesionalId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("Profesional", profesionalId));
@@ -95,9 +109,12 @@ public class AplicarExcepcionAgenda {
         excepcion.setProfesional(profesional);
         copiarDatos(excepcion, solicitud);
         excepcion.setActiva(true);
+        detectorCoincidencias.validar(profesionalId, excepcion);
         excepcion = excepcionAgendaRepository.save(excepcion);
 
         List<Turno> afectados = evaluarImpacto.ejecutar(excepcion, usuario);
+        sincronizarDias.reconciliar(profesionalId,
+                SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion), usuario);
 
         registradorAuditoria.registrar(
                 "AGENDA",
@@ -111,7 +128,7 @@ public class AplicarExcepcionAgenda {
                         + "; hasta=" + excepcion.getFechaFin()
                         + "; turnosAfectados=" + ids(afectados));
 
-        return excepcion;
+        return new ResultadoAplicacionExcepcionAgenda(excepcion, afectados);
     }
 
     static void copiarDatos(ExcepcionAgenda excepcion, SolicitudExcepcionAgenda solicitud) {
@@ -121,6 +138,7 @@ public class AplicarExcepcionAgenda {
         excepcion.setHoraInicio(solicitud.horaInicio());
         excepcion.setHoraFin(solicitud.horaFin());
         excepcion.setMotivo(solicitud.motivo().trim());
+        excepcion.setFechasExcluidas(new java.util.LinkedHashSet<>(solicitud.fechasExcluidas()));
 
         excepcion.limpiarBrechas();
         if (solicitud.brechas() != null) {

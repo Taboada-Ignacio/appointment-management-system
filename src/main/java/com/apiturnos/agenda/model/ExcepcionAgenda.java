@@ -43,6 +43,11 @@ public class ExcepcionAgenda {
     @OneToMany(mappedBy = "excepcionAgenda", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private java.util.List<BrechaExcepcion> brechas = new java.util.ArrayList<>();
 
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "excepcion_agenda_fecha_excluida", joinColumns = @JoinColumn(name = "excepcion_agenda_id"))
+    @Column(name = "fecha", nullable = false)
+    private java.util.Set<LocalDate> fechasExcluidas = new java.util.LinkedHashSet<>();
+
     @Column(name = "fecha_creacion", nullable = false, updatable = false)
     private Instant fechaCreacion;
 
@@ -169,6 +174,14 @@ public class ExcepcionAgenda {
 
     public void limpiarBrechas() {
         this.brechas.clear();
+    }
+
+    public java.util.Set<LocalDate> getFechasExcluidas() { return fechasExcluidas; }
+    public void setFechasExcluidas(java.util.Set<LocalDate> fechas) {
+        fechasExcluidas = fechas == null ? new java.util.LinkedHashSet<>() : new java.util.LinkedHashSet<>(fechas);
+    }
+    public boolean aplicaEn(LocalDate fecha) {
+        return !fecha.isBefore(fechaInicio) && !fecha.isAfter(fechaFin) && !fechasExcluidas.contains(fecha);
     }
 
     public java.util.List<com.apiturnos.disponibilidad.model.IntervaloHorario> obtenerIntervalos() {

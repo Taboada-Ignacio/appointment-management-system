@@ -7,14 +7,18 @@ import com.apiturnos.agenda.model.ExcepcionAgenda;
 import com.apiturnos.agenda.model.MesAgenda;
 import com.apiturnos.agenda.model.TipoExcepcion;
 import com.apiturnos.agenda.repository.AgendaAnualRepository;
+import com.apiturnos.agenda.repository.AfectacionTurnoExcepcionRepository;
 import com.apiturnos.agenda.repository.BrechaHorariaRepository;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.agenda.repository.ExcepcionAgendaRepository;
 import com.apiturnos.agenda.repository.MesAgendaRepository;
 import com.apiturnos.agenda.service.AplicarExcepcionAgenda;
+import com.apiturnos.agenda.service.AplicarExcepcionConResoluciones;
 import com.apiturnos.agenda.service.CancelarExcepcionAgenda;
 import com.apiturnos.agenda.service.ModificarExcepcionAgenda;
+import com.apiturnos.agenda.service.PrevisualizarExcepcionAgenda;
 import com.apiturnos.agenda.service.SolicitudExcepcionAgenda;
+import com.apiturnos.agenda.service.TokenImpactoExcepcionAgenda;
 import com.apiturnos.cliente.model.Cliente;
 import com.apiturnos.cliente.model.TipoDocumento;
 import com.apiturnos.cliente.repository.ClienteRepository;
@@ -85,6 +89,9 @@ class ExcepcionAgendaIntegrationTest {
     private ExcepcionAgendaRepository excepcionAgendaRepository;
 
     @Autowired
+    private AfectacionTurnoExcepcionRepository afectacionRepository;
+
+    @Autowired
     private ClienteRepository clienteRepository;
 
     @Autowired
@@ -107,6 +114,15 @@ class ExcepcionAgendaIntegrationTest {
 
     @Autowired
     private CancelarExcepcionAgenda cancelarExcepcionAgenda;
+
+    @Autowired
+    private PrevisualizarExcepcionAgenda previsualizarExcepcionAgenda;
+
+    @Autowired
+    private AplicarExcepcionConResoluciones aplicarConResoluciones;
+
+    @Autowired
+    private TokenImpactoExcepcionAgenda tokenImpacto;
 
     @Autowired
     private CalcularDisponibilidadDia calcularDisponibilidadDia;
@@ -571,6 +587,51 @@ class ExcepcionAgendaIntegrationTest {
 
         // Pero el turno dado de baja no se reactiva automáticamente
         assertThat(estadoActual(turno)).isEqualTo("DADO_DE_BAJA");
+    }
+
+    @Test
+    @DisplayName("Previsualizar detecta turnos afectados sin persistir la excepción ni efectos transversales")
+    void previsualizarNoProduceEfectosSecundarios() {
+        LocalDate dia = fecha(7, 15);
+        DiaAgenda diaAgenda = crearDia(dia, "ACTIVO");
+        crearBrecha(diaAgenda, LocalTime.of(8, 0), LocalTime.of(12, 0));
+        Turno turno = crearTurno(
+                diaAgenda, crearCliente(true), LocalTime.of(9, 0), LocalTime.of(9, 30));
+
+        List<Turno> afectados = previsualizarExcepcionAgenda.nueva(
+                profesional.getId(),
+                new SolicitudExcepcionAgenda(
+                        dia, dia, TipoExcepcion.DIA_NO_LABORABLE,
+                        null, null, "Capacitación"));
+
+        assertThat(afectados).extracting(Turno::getId).containsExactly(turno.getId());
+        assertThat(excepcionAgendaRepository.count()).isZero();
+        assertThat(estadoActual(turno)).isEqualTo("ASIGNADO");
+        assertThat(historial(turno)).hasSize(1);
+        assertThat(notificacionRepository.findByTurnoId(turno.getId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Confirmar con resolución opcional conserva el turno y lo deja afectado y pendiente")
+    void aplicarConTurnoPendiente() {
+        LocalDate dia = fecha(8, 12);
+        DiaAgenda diaAgenda = crearDia(dia, "ACTIVO");
+        crearBrecha(diaAgenda, LocalTime.of(8, 0), LocalTime.of(12, 0));
+        Turno turno = crearTurno(
+                diaAgenda, crearCliente(true), LocalTime.of(9, 0), LocalTime.of(9, 30));
+        SolicitudExcepcionAgenda solicitud = new SolicitudExcepcionAgenda(
+                dia, dia, TipoExcepcion.DIA_NO_LABORABLE, null, null, "Capacitación");
+        List<Turno> preview = previsualizarExcepcionAgenda.nueva(profesional.getId(), solicitud);
+
+        aplicarConResoluciones.ejecutar(
+                profesional.getId(), solicitud, tokenImpacto.generar(solicitud, preview),
+                List.of(), "integration-test");
+
+        assertThat(estadoActual(turno)).isEqualTo("AFECTADO_POR_EXCEPCION");
+        assertThat(turnoRepository.existsById(turno.getId())).isTrue();
+        assertThat(notificacionRepository.findByTurnoId(turno.getId())).isEmpty();
+        assertThat(afectacionRepository.findAll()).singleElement()
+                .satisfies(a -> assertThat(a.getEstadoResolucion().name()).isEqualTo("PENDIENTE"));
     }
 
     private Profesional crearProfesional(String sufijo) {

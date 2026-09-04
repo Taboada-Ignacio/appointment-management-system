@@ -54,7 +54,7 @@ export function DailyTimeline({
     );
   }
 
-  const { fecha, estadoActual, brechas = [] } = day;
+  const { fecha, estadoActual, brechas = [], bloqueosHorario = [] } = day;
   const derivedStatus = deriveTemporalStatus(estadoActual, fecha, timezone);
 
   // Dynamic range calculation:
@@ -62,9 +62,10 @@ export function DailyTimeline({
   let startHour = 8;
   let endHour = 18;
 
-  if (brechas && brechas.length > 0) {
-    const startMinutesList = brechas.map((b) => timeToMinutes(b.horaInicio));
-    const endMinutesList = brechas.map((b) => timeToMinutes(b.horaFin));
+  const intervalosVisibles = [...brechas, ...bloqueosHorario];
+  if (intervalosVisibles.length > 0) {
+    const startMinutesList = intervalosVisibles.map((b) => timeToMinutes(b.horaInicio));
+    const endMinutesList = intervalosVisibles.map((b) => timeToMinutes(b.horaFin));
 
     const minStartMinutes = Math.min(...startMinutesList);
     const maxEndMinutes = Math.max(...endMinutesList);
@@ -142,6 +143,19 @@ export function DailyTimeline({
     });
   };
 
+  const renderBlockedGaps = () => bloqueosHorario.map((gap, idx) => {
+    const startMin = timeToMinutes(gap.horaInicio);
+    const endMin = timeToMinutes(gap.horaFin);
+    const adjustedStart = Math.max(startHour * 60, startMin);
+    const adjustedEnd = Math.min(endHour * 60, endMin);
+    if (adjustedEnd <= startHour * 60 || adjustedStart >= endHour * 60) return null;
+    return (
+      <div key={`blocked-${idx}`} className="absolute left-14 right-2 z-10 flex items-center overflow-hidden rounded-lg border border-orange-600 bg-orange-500/90 px-4 text-xs font-semibold text-white shadow-sm" style={{top:`${((adjustedStart-startHour*60)/totalMinutes)*100}%`,height:`${((adjustedEnd-adjustedStart)/totalMinutes)*100}%`,minHeight:'28px',borderLeft:'3px solid #c2410c'}}>
+        <div className="flex items-center gap-2 truncate"><span className="size-2 shrink-0 rounded-full bg-white"/><span className="font-heading tracking-tight">{formatTimeRange(gap.horaInicio,gap.horaFin)}</span><span className="hidden text-[11px] font-normal text-white/90 sm:inline">· Horario bloqueado</span></div>
+      </div>
+    );
+  });
+
   return (
     <Card className="shadow-none">
       <CardContent className="flex flex-col gap-5 p-5 sm:p-6">
@@ -187,10 +201,11 @@ export function DailyTimeline({
           dayEnd={displayEndHour}
           variant="detailed"
         />
+        {bloqueosHorario.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{bloqueosHorario.map((gap,index)=><span key={`${gap.horaInicio}-${gap.horaFin}-${index}`} className="rounded-md bg-orange-500 px-2 py-1 text-[10px] font-bold text-white">Bloqueado {formatTimeRange(gap.horaInicio,gap.horaFin)}</span>)}</div>}
       </section>
 
       <ScrollArea className="relative mt-2 h-[min(68vh,44rem)] min-h-[440px] pr-3">
-        {brechas.length === 0 ? (
+        {intervalosVisibles.length === 0 ? (
           <div className="py-12">
             <EmptyState
               icon={CalendarClock}
@@ -210,6 +225,7 @@ export function DailyTimeline({
           >
             {renderHourLines()}
             {renderGaps()}
+            {renderBlockedGaps()}
 
             {isTodayDay &&
               currentTimeMinutes >= startHour * 60 &&

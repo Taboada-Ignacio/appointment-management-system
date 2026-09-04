@@ -8,6 +8,8 @@ import com.apiturnos.agenda.model.BrechaHoraria;
 import com.apiturnos.agenda.model.DiaAgenda;
 import com.apiturnos.agenda.repository.BrechaHorariaRepository;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
+import com.apiturnos.agenda.repository.ExcepcionAgendaRepository;
+import com.apiturnos.agenda.dto.BrechaExcepcionResponseDto;
 import com.apiturnos.agenda.dto.DiaSeleccionableResponseDto;
 import com.apiturnos.agenda.service.ConfigurarDiaAgenda;
 import com.apiturnos.agenda.service.ObtenerDiasSeleccionables;
@@ -36,19 +38,22 @@ public class DiaAgendaController {
     private final GestorCambioEstado gestorCambioEstado;
     private final ObtenerDiasSeleccionables obtenerDiasSeleccionables;
     private final com.apiturnos.agenda.service.ActivarInactivarDiaAgenda activarInactivarDiaAgenda;
+    private final ExcepcionAgendaRepository excepcionAgendaRepository;
 
     public DiaAgendaController(DiaAgendaRepository diaAgendaRepository,
                                BrechaHorariaRepository brechaHorariaRepository,
                                ConfigurarDiaAgenda configurarDiaAgenda,
                                GestorCambioEstado gestorCambioEstado,
                                ObtenerDiasSeleccionables obtenerDiasSeleccionables,
-                               com.apiturnos.agenda.service.ActivarInactivarDiaAgenda activarInactivarDiaAgenda) {
+                               com.apiturnos.agenda.service.ActivarInactivarDiaAgenda activarInactivarDiaAgenda,
+                               ExcepcionAgendaRepository excepcionAgendaRepository) {
         this.diaAgendaRepository = diaAgendaRepository;
         this.brechaHorariaRepository = brechaHorariaRepository;
         this.configurarDiaAgenda = configurarDiaAgenda;
         this.gestorCambioEstado = gestorCambioEstado;
         this.obtenerDiasSeleccionables = obtenerDiasSeleccionables;
         this.activarInactivarDiaAgenda = activarInactivarDiaAgenda;
+        this.excepcionAgendaRepository = excepcionAgendaRepository;
     }
 
     @GetMapping("/seleccionables")
@@ -77,7 +82,8 @@ public class DiaAgendaController {
                 .map(BrechaHorariaResponseDto::new)
                 .toList();
 
-        return ResponseEntity.ok(new DiaAgendaDetalleResponseDto(dia, estadoDia, brechasDto));
+        return ResponseEntity.ok(new DiaAgendaDetalleResponseDto(
+                dia, estadoDia, brechasDto, obtenerBloqueos(profesionalId, dia.getFecha())));
     }
 
     @PutMapping("/{diaAgendaId}/brechas")
@@ -104,7 +110,8 @@ public class DiaAgendaController {
                 .map(BrechaHorariaResponseDto::new)
                 .toList();
 
-        return ResponseEntity.ok(new DiaAgendaDetalleResponseDto(dia, estadoDia, brechasDto));
+        return ResponseEntity.ok(new DiaAgendaDetalleResponseDto(
+                dia, estadoDia, brechasDto, obtenerBloqueos(profesionalId, dia.getFecha())));
     }
 
     @PostMapping("/{diaAgendaId}/activar")
@@ -115,6 +122,16 @@ public class DiaAgendaController {
             @RequestHeader(value = "X-Usuario", defaultValue = "admin") String usuario) {
         activarInactivarDiaAgenda.activar(profesionalId, diaAgendaId, usuario);
         return ResponseEntity.ok().build();
+    }
+
+    private List<BrechaExcepcionResponseDto> obtenerBloqueos(Long profesionalId, LocalDate fecha) {
+        return excepcionAgendaRepository.findActivasAplicablesAFecha(profesionalId, fecha).stream()
+                .filter(excepcion -> excepcion.isActiva() && excepcion.aplicaEn(fecha))
+                .filter(excepcion -> excepcion.getTipo().esBloqueoHorario())
+                .flatMap(excepcion -> excepcion.obtenerIntervalos().stream())
+                .map(BrechaExcepcionResponseDto::from)
+                .distinct()
+                .toList();
     }
 
     @PostMapping("/{diaAgendaId}/inactivar")

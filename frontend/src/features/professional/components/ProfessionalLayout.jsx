@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { professionalContext } from '@/config/professional';
 import { useAgendaMonth, useAnnualAgendas } from '../hooks/useAgenda';
 import { useProfessionalConfig } from '../hooks/useProfessionalConfig';
+import { useAffectedAppointments } from '../hooks/useAbsences';
 import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { OnboardingStepper } from './OnboardingStepper';
 import { OnboardingWizard } from './OnboardingWizard';
@@ -33,6 +34,8 @@ export function ProfessionalLayout() {
   const agendaState = useAgendaMonth(current.year, current.month);
   const { data: config, isLoading: isLoadingConfig } = useProfessionalConfig(professionalContext.id);
   const { data: agendas, isLoading: isLoadingAgendas } = useAnnualAgendas();
+  const affectedQuery = useAffectedAppointments();
+  const pendingAffectedCount = affectedQuery.data?.filter((item) => item.resolucion === 'PENDIENTE').length;
 
   const hasConfig = Boolean(config);
   const hasCurrentYearAgenda = Array.isArray(agendas) && agendas.some((agenda) => agenda.anio === current.year);
@@ -85,6 +88,7 @@ export function ProfessionalLayout() {
         onClose={() => setDrawerOpen(false)}
         hasAnnualAgenda={Boolean(agendaState.agenda)}
         returnFocusRef={menuButtonRef}
+        pendingAffectedCount={pendingAffectedCount}
       />
 
       <div className="lg:pl-64">

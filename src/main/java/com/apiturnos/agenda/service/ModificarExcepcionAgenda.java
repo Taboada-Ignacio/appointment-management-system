@@ -19,15 +19,24 @@ public class ModificarExcepcionAgenda {
     private final ValidadorExcepcionAgenda validador;
     private final EvaluarImpactoExcepcionAgenda evaluarImpacto;
     private final RegistradorAuditoria registradorAuditoria;
+    private final DetectorCoincidenciasExcepcionAgenda detectorCoincidencias;
+    private final TokenImpactoExcepcionAgenda tokenImpacto;
+    private final SincronizarEstadoDiasPorExcepcion sincronizarDias;
 
     public ModificarExcepcionAgenda(ExcepcionAgendaRepository excepcionAgendaRepository,
                                      ValidadorExcepcionAgenda validador,
                                      EvaluarImpactoExcepcionAgenda evaluarImpacto,
-                                     RegistradorAuditoria registradorAuditoria) {
+                                     RegistradorAuditoria registradorAuditoria,
+                                     DetectorCoincidenciasExcepcionAgenda detectorCoincidencias,
+                                     TokenImpactoExcepcionAgenda tokenImpacto,
+                                     SincronizarEstadoDiasPorExcepcion sincronizarDias) {
         this.excepcionAgendaRepository = excepcionAgendaRepository;
         this.validador = validador;
         this.evaluarImpacto = evaluarImpacto;
         this.registradorAuditoria = registradorAuditoria;
+        this.detectorCoincidencias = detectorCoincidencias;
+        this.tokenImpacto = tokenImpacto;
+        this.sincronizarDias = sincronizarDias;
     }
 
     @Transactional
@@ -35,6 +44,22 @@ public class ModificarExcepcionAgenda {
                                      Long excepcionId,
                                      SolicitudExcepcionAgenda solicitud,
                                      String usuario) {
+        return ejecutarConResultado(profesionalId, excepcionId, solicitud, usuario).excepcion();
+    }
+
+    @Transactional
+    public ResultadoAplicacionExcepcionAgenda ejecutarConResultado(
+            Long profesionalId,
+            Long excepcionId,
+            SolicitudExcepcionAgenda solicitud,
+            String usuario) {
+        return ejecutarConResultado(profesionalId, excepcionId, solicitud, null, usuario);
+    }
+
+    @Transactional
+    public ResultadoAplicacionExcepcionAgenda ejecutarConResultado(
+            Long profesionalId, Long excepcionId, SolicitudExcepcionAgenda solicitud,
+            String previewToken, String usuario) {
         validador.validar(solicitud);
         ExcepcionAgenda excepcion = excepcionAgendaRepository
                 .findByIdAndProfesionalId(excepcionId, profesionalId)
@@ -44,9 +69,20 @@ public class ModificarExcepcionAgenda {
         }
 
         AplicarExcepcionAgenda.copiarDatos(excepcion, solicitud);
+        detectorCoincidencias.validar(profesionalId, excepcion);
+        List<Turno> impactoActual = evaluarImpacto.previsualizar(excepcion);
+        if (previewToken != null && !previewToken.equals(tokenImpacto.generar(solicitud, impactoActual))) {
+            throw new org.springframework.dao.ConcurrencyFailureException(
+                    "El impacto de la excepción cambió. Revise nuevamente los turnos afectados");
+        }
+
+        var fechasAnteriores = SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion);
         excepcion = excepcionAgendaRepository.save(excepcion);
 
         List<Turno> afectados = evaluarImpacto.ejecutar(excepcion, usuario);
+        var fechasAReconciliar = new java.util.LinkedHashSet<>(fechasAnteriores);
+        fechasAReconciliar.addAll(SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion));
+        sincronizarDias.reconciliar(profesionalId, fechasAReconciliar, usuario);
         registradorAuditoria.registrar(
                 "AGENDA",
                 "ExcepcionAgenda",
@@ -60,6 +96,6 @@ public class ModificarExcepcionAgenda {
                         + "; turnosAfectados="
                         + afectados.stream().map(Turno::getId).toList());
 
-        return excepcion;
+        return new ResultadoAplicacionExcepcionAgenda(excepcion, afectados);
     }
 }
