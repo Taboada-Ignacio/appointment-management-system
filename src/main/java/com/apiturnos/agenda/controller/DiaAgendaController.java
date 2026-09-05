@@ -23,8 +23,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import com.apiturnos.agenda.model.TipoExcepcion;
+
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @RestController
@@ -77,13 +80,29 @@ public class DiaAgendaController {
         }
 
         String estadoDia = gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.DIA_AGENDA, diaAgendaId);
-        List<BrechaHoraria> brechas = brechaHorariaRepository.findByDiaAgendaId(diaAgendaId);
-        List<BrechaHorariaResponseDto> brechasDto = brechas.stream()
-                .map(BrechaHorariaResponseDto::new)
-                .toList();
+        List<BrechaExcepcionResponseDto> modificaciones = obtenerModificaciones(profesionalId, dia.getFecha());
+        List<BrechaHorariaResponseDto> brechasDto;
+        if (!modificaciones.isEmpty()) {
+            brechasDto = new ArrayList<>(modificaciones.stream()
+                    .map(m -> new BrechaHorariaResponseDto(null, m.horaInicio(), m.horaFin()))
+                    .toList());
+        } else {
+            List<BrechaHoraria> brechas = brechaHorariaRepository.findByDiaAgendaId(diaAgendaId);
+            brechasDto = new ArrayList<>(brechas.stream()
+                    .map(BrechaHorariaResponseDto::new)
+                    .toList());
+        }
+
+        List<BrechaExcepcionResponseDto> habilitaciones = obtenerHabilitaciones(profesionalId, dia.getFecha());
+        for (BrechaExcepcionResponseDto hab : habilitaciones) {
+            brechasDto.add(new BrechaHorariaResponseDto(null, hab.horaInicio(), hab.horaFin()));
+        }
+        brechasDto.sort(Comparator.comparing(BrechaHorariaResponseDto::getHoraInicio));
+
+        List<BrechaExcepcionResponseDto> bloqueos = obtenerBloqueos(profesionalId, dia.getFecha());
 
         return ResponseEntity.ok(new DiaAgendaDetalleResponseDto(
-                dia, estadoDia, brechasDto, obtenerBloqueos(profesionalId, dia.getFecha())));
+                dia, estadoDia, brechasDto, bloqueos, habilitaciones));
     }
 
     @PutMapping("/{diaAgendaId}/brechas")
@@ -106,12 +125,28 @@ public class DiaAgendaController {
                 .orElseThrow(() -> new EntidadNoEncontradaException("DiaAgenda", diaAgendaId));
         String estadoDia = gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.DIA_AGENDA, diaAgendaId);
 
-        List<BrechaHorariaResponseDto> brechasDto = guardadas.stream()
-                .map(BrechaHorariaResponseDto::new)
-                .toList();
+        List<BrechaExcepcionResponseDto> modificaciones = obtenerModificaciones(profesionalId, dia.getFecha());
+        List<BrechaHorariaResponseDto> brechasDto;
+        if (!modificaciones.isEmpty()) {
+            brechasDto = new ArrayList<>(modificaciones.stream()
+                    .map(m -> new BrechaHorariaResponseDto(null, m.horaInicio(), m.horaFin()))
+                    .toList());
+        } else {
+            brechasDto = new ArrayList<>(guardadas.stream()
+                    .map(BrechaHorariaResponseDto::new)
+                    .toList());
+        }
+
+        List<BrechaExcepcionResponseDto> habilitaciones = obtenerHabilitaciones(profesionalId, dia.getFecha());
+        for (BrechaExcepcionResponseDto hab : habilitaciones) {
+            brechasDto.add(new BrechaHorariaResponseDto(null, hab.horaInicio(), hab.horaFin()));
+        }
+        brechasDto.sort(Comparator.comparing(BrechaHorariaResponseDto::getHoraInicio));
+
+        List<BrechaExcepcionResponseDto> bloqueos = obtenerBloqueos(profesionalId, dia.getFecha());
 
         return ResponseEntity.ok(new DiaAgendaDetalleResponseDto(
-                dia, estadoDia, brechasDto, obtenerBloqueos(profesionalId, dia.getFecha())));
+                dia, estadoDia, brechasDto, bloqueos, habilitaciones));
     }
 
     @PostMapping("/{diaAgendaId}/activar")
@@ -125,9 +160,38 @@ public class DiaAgendaController {
     }
 
     private List<BrechaExcepcionResponseDto> obtenerBloqueos(Long profesionalId, LocalDate fecha) {
+        if (excepcionAgendaRepository == null) {
+            return List.of();
+        }
         return excepcionAgendaRepository.findActivasAplicablesAFecha(profesionalId, fecha).stream()
                 .filter(excepcion -> excepcion.isActiva() && excepcion.aplicaEn(fecha))
                 .filter(excepcion -> excepcion.getTipo().esBloqueoHorario())
+                .flatMap(excepcion -> excepcion.obtenerIntervalos().stream())
+                .map(BrechaExcepcionResponseDto::from)
+                .distinct()
+                .toList();
+    }
+
+    private List<BrechaExcepcionResponseDto> obtenerHabilitaciones(Long profesionalId, LocalDate fecha) {
+        if (excepcionAgendaRepository == null) {
+            return List.of();
+        }
+        return excepcionAgendaRepository.findActivasAplicablesAFecha(profesionalId, fecha).stream()
+                .filter(excepcion -> excepcion.isActiva() && excepcion.aplicaEn(fecha))
+                .filter(excepcion -> excepcion.getTipo() == TipoExcepcion.HABILITACION_EXTRAORDINARIA)
+                .flatMap(excepcion -> excepcion.obtenerIntervalos().stream())
+                .map(BrechaExcepcionResponseDto::from)
+                .distinct()
+                .toList();
+    }
+
+    private List<BrechaExcepcionResponseDto> obtenerModificaciones(Long profesionalId, LocalDate fecha) {
+        if (excepcionAgendaRepository == null) {
+            return List.of();
+        }
+        return excepcionAgendaRepository.findActivasAplicablesAFecha(profesionalId, fecha).stream()
+                .filter(excepcion -> excepcion.isActiva() && excepcion.aplicaEn(fecha))
+                .filter(excepcion -> excepcion.getTipo() == TipoExcepcion.MODIFICACION_HORARIO)
                 .flatMap(excepcion -> excepcion.obtenerIntervalos().stream())
                 .map(BrechaExcepcionResponseDto::from)
                 .distinct()

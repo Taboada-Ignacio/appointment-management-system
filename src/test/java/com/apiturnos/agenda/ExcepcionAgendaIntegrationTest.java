@@ -17,6 +17,7 @@ import com.apiturnos.agenda.service.AplicarExcepcionConResoluciones;
 import com.apiturnos.agenda.service.CancelarExcepcionAgenda;
 import com.apiturnos.agenda.service.ModificarExcepcionAgenda;
 import com.apiturnos.agenda.service.PrevisualizarExcepcionAgenda;
+import com.apiturnos.agenda.service.ResultadoAplicacionExcepcionAgenda;
 import com.apiturnos.agenda.service.SolicitudExcepcionAgenda;
 import com.apiturnos.agenda.service.TokenImpactoExcepcionAgenda;
 import com.apiturnos.cliente.model.Cliente;
@@ -363,7 +364,7 @@ class ExcepcionAgendaIntegrationTest {
     }
 
     @Test
-    @DisplayName("La habilitacion extraordinaria abre un dia inactivo sin cambiar su base ni bajar turnos")
+    @DisplayName("La habilitacion extraordinaria activa el dia inactivo y al cancelar vuelve a inactivo sin cambiar su base ni bajar turnos")
     void habilitacionExtraordinariaNoBajaTurnosNiActivaLaBase() {
         LocalDate dia = fecha(5, 12);
         DiaAgenda diaAgenda = crearDia(dia, "INACTIVO");
@@ -373,7 +374,7 @@ class ExcepcionAgendaIntegrationTest {
                 LocalTime.of(18, 30),
                 LocalTime.of(19, 0));
 
-        aplicarExcepcionAgenda.ejecutar(
+        ExcepcionAgenda excepcion = aplicarExcepcionAgenda.ejecutar(
                 profesional.getId(),
                 dia,
                 dia,
@@ -391,10 +392,19 @@ class ExcepcionAgendaIntegrationTest {
 
         assertThat(estadoActual(turno)).isEqualTo("ASIGNADO");
         assertThat(gestorCambioEstado.obtenerNombreEstadoActual(
-                AmbitoEstado.DIA_AGENDA, diaAgenda.getId())).isEqualTo("INACTIVO");
+                AmbitoEstado.DIA_AGENDA, diaAgenda.getId())).isEqualTo("ACTIVO");
         assertThat(brechaHorariaRepository.findByDiaAgendaId(diaAgenda.getId())).isEmpty();
         assertThat(notificacionRepository.findByTurnoId(turno.getId())).isEmpty();
         assertThat(turnoRepository.existsById(turno.getId())).isTrue();
+
+        // Al cancelar la habilitación, el día vuelve a INACTIVO
+        cancelarExcepcionAgenda.ejecutar(profesional.getId(), excepcion.getId(), "integration-test");
+
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(gestorCambioEstado.obtenerNombreEstadoActual(
+                AmbitoEstado.DIA_AGENDA, diaAgenda.getId())).isEqualTo("INACTIVO");
     }
 
     @Test

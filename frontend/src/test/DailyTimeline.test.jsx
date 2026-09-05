@@ -122,4 +122,98 @@ describe('DailyTimeline Component', () => {
     expect(screen.getByText('Bloqueo de horario')).toBeInTheDocument();
     expect(screen.getByText('Bloqueado 10:00 – 11:00')).toBeInTheDocument();
   });
+
+  it('renders contextual banner when day has HABILITACION_EXTRAORDINARIA', () => {
+    const dayWithExtraordinary = {
+      fecha: '2026-09-18',
+      estadoActual: 'ACTIVO',
+      brechas: [
+        { horaInicio: '09:00', horaFin: '12:00' },
+      ],
+      tiposExcepcion: ['HABILITACION_EXTRAORDINARIA'],
+    };
+
+    render(
+      <DailyTimeline
+        day={dayWithExtraordinary}
+        timezone="America/Argentina/Buenos_Aires"
+      />
+    );
+
+    expect(
+      screen.getByText('Día con habilitación extraordinaria de atención')
+    ).toBeInTheDocument();
+  });
+
+  it('renders extraordinary gaps with emerald styling and availability signal legend', () => {
+    const dayWithHabilitacion = {
+      fecha: '2026-09-18',
+      estadoActual: 'ACTIVO',
+      brechas: [],
+      habilitacionesExtraordinarias: [
+        { horaInicio: '09:00', horaFin: '13:00' },
+      ],
+      tiposExcepcion: ['HABILITACION_EXTRAORDINARIA'],
+    };
+
+    const { container } = render(
+      <DailyTimeline
+        day={dayWithHabilitacion}
+        timezone="America/Argentina/Buenos_Aires"
+      />
+    );
+
+    // Gaps in timeline
+    expect(screen.getByText('09:00 – 13:00')).toBeInTheDocument();
+    expect(screen.getByText('· Habilitación extraordinaria disponible')).toBeInTheDocument();
+
+    // Availability Signal legend
+    expect(screen.getByText('Habilitación extraordinaria')).toBeInTheDocument();
+    expect(screen.getByText('Habilitado 09:00 – 13:00')).toBeInTheDocument();
+
+    // Availability signal segment
+    const segment = container.querySelector('[title="Habilitación extraordinaria: 09:00 - 13:00"]');
+    expect(segment).toBeInTheDocument();
+    expect(segment.className).toContain('bg-emerald-500');
+  });
+
+  it('renders only the modification intervals with regular gap styling when day has MODIFICACION_HORARIO', () => {
+    const dayWithModification = {
+      fecha: '2026-09-19',
+      estadoActual: 'ACTIVO',
+      brechas: [
+        { horaInicio: '08:00', horaFin: '12:00' },
+        { horaInicio: '14:00', horaFin: '18:00' },
+      ],
+      modificacionesHorarias: [
+        { horaInicio: '10:00', horaFin: '15:00' },
+      ],
+      tiposExcepcion: ['MODIFICACION_HORARIO'],
+    };
+
+    const { container } = render(
+      <DailyTimeline
+        day={dayWithModification}
+        timezone="America/Argentina/Buenos_Aires"
+      />
+    );
+
+    // Only 10:00 - 15:00 is rendered, not the base gaps 08:00-12:00 or 14:00-18:00
+    expect(screen.getByText('10:00 – 15:00')).toBeInTheDocument();
+    expect(screen.queryByText('08:00 – 12:00')).not.toBeInTheDocument();
+    expect(screen.queryByText('14:00 – 18:00')).not.toBeInTheDocument();
+
+    // Renders with regular gap styling "Franja de atención disponible"
+    expect(screen.getByText('· Franja de atención disponible')).toBeInTheDocument();
+
+    // Availability signal shows standard available segment (bg-ring)
+    const segment = container.querySelector('[title="Disponible: 10:00 - 15:00"]');
+    expect(segment).toBeInTheDocument();
+    expect(segment.className).toContain('bg-ring');
+    expect(segment.className).not.toContain('bg-amber');
+    expect(segment.className).not.toContain('bg-emerald');
+
+    // No extraordinary or warning banners
+    expect(screen.queryByText('Día con habilitación extraordinaria de atención')).not.toBeInTheDocument();
+  });
 });

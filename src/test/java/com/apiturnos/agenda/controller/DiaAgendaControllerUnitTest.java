@@ -58,6 +58,8 @@ class DiaAgendaControllerUnitTest {
     private com.apiturnos.agenda.service.ObtenerDiasSeleccionables obtenerDiasSeleccionables;
     @Mock
     private com.apiturnos.agenda.service.ActivarInactivarDiaAgenda activarInactivarDiaAgenda;
+    @Mock
+    private com.apiturnos.agenda.repository.ExcepcionAgendaRepository excepcionAgendaRepository;
 
     @InjectMocks
     private DiaAgendaController diaAgendaController;
@@ -103,6 +105,36 @@ class DiaAgendaControllerUnitTest {
                 .andExpect(jsonPath("$.id").value(50))
                 .andExpect(jsonPath("$.nombreDiaSemana").value("lunes"))
                 .andExpect(jsonPath("$.estadoActual").value("ACTIVO"));
+    }
+
+    @Test
+    @DisplayName("GET /api/profesionales/{profesionalId}/dias-agenda/{diaAgendaId} - Reemplaza brechas por modificación horaria")
+    void testObtenerDetalleDiaConModificacionHoraria() throws Exception {
+        BrechaHoraria brechaBase = new BrechaHoraria();
+        brechaBase.setId(1L);
+        brechaBase.setDiaAgenda(dia);
+        brechaBase.setHoraInicioAtencion(LocalTime.of(8, 0));
+        brechaBase.setHoraFinAtencion(LocalTime.of(12, 0));
+
+        com.apiturnos.agenda.model.ExcepcionAgenda modificacion = new com.apiturnos.agenda.model.ExcepcionAgenda();
+        modificacion.setId(99L);
+        modificacion.setTipo(com.apiturnos.agenda.model.TipoExcepcion.MODIFICACION_HORARIO);
+        modificacion.setFechaInicio(dia.getFecha());
+        modificacion.setFechaFin(dia.getFecha());
+        modificacion.setHoraInicio(LocalTime.of(10, 0));
+        modificacion.setHoraFin(LocalTime.of(15, 0));
+        modificacion.setActiva(true);
+
+        when(diaAgendaRepository.findById(50L)).thenReturn(Optional.of(dia));
+        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.DIA_AGENDA, 50L)).thenReturn("ACTIVO");
+        when(excepcionAgendaRepository.findActivasAplicablesAFecha(1L, dia.getFecha())).thenReturn(List.of(modificacion));
+
+        mockMvc.perform(get("/api/profesionales/1/dias-agenda/50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(50))
+                .andExpect(jsonPath("$.brechas.length()").value(1))
+                .andExpect(jsonPath("$.brechas[0].horaInicio").value("10:00"))
+                .andExpect(jsonPath("$.brechas[0].horaFin").value("15:00"));
     }
 
     @Test

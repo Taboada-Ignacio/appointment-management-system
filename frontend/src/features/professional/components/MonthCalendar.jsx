@@ -13,7 +13,7 @@ const EXCEPTION_LABELS = {
   DIA_NO_LABORABLE: 'No laborable',
   BLOQUEO_HORARIO: 'Bloqueo de Horario',
   HABILITACION_EXTRAORDINARIA: 'Habilitación extra',
-  MODIFICACION_HORARIO: 'Horario excepcional',
+  MODIFICACION_HORARIO: 'Horario modificado',
   EXCEPCION_HORARIA: 'Excepción horaria',
 };
 
@@ -184,9 +184,29 @@ export function MonthCalendar({
               const hasReducedDay = exceptionTypes.some((type) =>
                 type === 'BLOQUEO_HORARIO' || type === 'EXCEPCION_HORARIA'
               );
-              const paintsExceptionBackground = exceptionTypes.some((type) =>
-                type !== 'BLOQUEO_HORARIO' && type !== 'EXCEPCION_HORARIA'
-              ) || (hasException && exceptionTypes.length === 0);
+              const hasModifiedDay = exceptionTypes.some((type) =>
+                type === 'MODIFICACION_HORARIO'
+              );
+              const visibleExceptionTypes = exceptionTypes.filter(
+                (type) =>
+                  type !== 'BLOQUEO_HORARIO' &&
+                  type !== 'EXCEPCION_HORARIA' &&
+                  type !== 'MODIFICACION_HORARIO'
+              );
+              const hasExtraordinary = exceptionTypes.includes('HABILITACION_EXTRAORDINARIA');
+              const paintsAbsenceBackground =
+                exceptionTypes.some(
+                  (type) =>
+                    type !== 'BLOQUEO_HORARIO' &&
+                    type !== 'EXCEPCION_HORARIA' &&
+                    type !== 'HABILITACION_EXTRAORDINARIA' &&
+                    type !== 'MODIFICACION_HORARIO'
+                ) ||
+                (hasException &&
+                  !hasExtraordinary &&
+                  !hasReducedDay &&
+                  !hasModifiedDay &&
+                  exceptionTypes.length === 0);
               const status = cell.data ? normalizeStatus(cell.data.estadoActual) : null;
               const isActive = status === 'ACTIVO';
               const isInactive = !cell.data || status === 'INACTIVO';
@@ -204,8 +224,13 @@ export function MonthCalendar({
                 : '';
 
               let dayThemeClasses;
-              if (paintsExceptionBackground) {
-                // Fondo naranja si el día posee una excepción
+              if (hasExtraordinary) {
+                // Fondo verde agua (emerald) para Habilitación Extraordinaria (prevalece sobre inactivo y ausencias)
+                dayThemeClasses = isSelected
+                  ? 'border-emerald-500 bg-emerald-500/35 shadow-sm ring-2 ring-inset ring-ring z-10 text-foreground'
+                  : 'bg-emerald-500/20 hover:bg-emerald-500/30 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 text-foreground';
+              } else if (paintsAbsenceBackground) {
+                // Fondo naranja si el día posee una excepción de ausencia / cierre
                 dayThemeClasses = isSelected
                   ? 'border-warning bg-warning/35 shadow-sm ring-2 ring-inset ring-ring z-10 text-foreground'
                   : 'bg-warning/25 hover:bg-warning/35 text-foreground';
@@ -239,6 +264,8 @@ export function MonthCalendar({
                   data-status={status}
                   data-today={isTodayDate ? 'true' : 'false'}
                   data-has-exception={hasException ? 'true' : 'false'}
+                  data-has-extraordinary={hasExtraordinary ? 'true' : 'false'}
+                  data-has-modified={hasModifiedDay ? 'true' : 'false'}
                   className={cn(
                     'relative flex min-h-24 flex-col justify-between p-2 text-left outline-none transition-all sm:min-h-28',
                     'border-b border-r border-border/80',
@@ -250,7 +277,9 @@ export function MonthCalendar({
                     <span
                       className={cn(
                         'font-heading text-xs font-bold sm:text-sm',
-                        paintsExceptionBackground
+                        hasExtraordinary
+                          ? 'text-emerald-700 dark:text-emerald-300 font-black'
+                          : paintsAbsenceBackground
                           ? 'text-warning font-black'
                           : isInactive
                           ? 'text-muted-foreground font-semibold'
@@ -272,6 +301,11 @@ export function MonthCalendar({
                     {hasReducedDay && (
                       <span className="max-w-full self-start whitespace-normal rounded bg-orange-500 px-1 py-0.5 text-center text-[6px] font-black uppercase leading-none tracking-tight text-white sm:text-[8px]" title="La jornada tiene una o más franjas bloqueadas">
                         Jornada reducida
+                      </span>
+                    )}
+                    {hasModifiedDay && (
+                      <span className="max-w-full self-start whitespace-normal rounded bg-orange-500 px-1 py-0.5 text-center text-[6px] font-black uppercase leading-none tracking-tight text-white sm:text-[8px]" title="La jornada tiene un horario de atención modificado">
+                        Horario Modificado
                       </span>
                     )}
                     {status && (
@@ -299,17 +333,25 @@ export function MonthCalendar({
                         <span className="block">{appointmentCount} {appointmentCount === 1 ? 'turno' : 'turnos'}</span>
                       </div>
                     )}
-                    {exceptionTypes.length > 0 && (
+                    {visibleExceptionTypes.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        {exceptionTypes.map((type) => (
-                          <span
-                            key={type}
-                            className="max-w-full truncate rounded bg-warning/35 px-1 py-0.5 text-[8px] font-bold text-warning-foreground sm:text-[9px]"
-                            title={EXCEPTION_LABELS[type] || type}
-                          >
-                            {EXCEPTION_LABELS[type] || type}
-                          </span>
-                        ))}
+                        {visibleExceptionTypes.map((type) => {
+                          const isExtraordinary = type === 'HABILITACION_EXTRAORDINARIA';
+                          return (
+                            <span
+                              key={type}
+                              className={cn(
+                                'max-w-full truncate rounded px-1 py-0.5 text-[8px] font-bold sm:text-[9px]',
+                                isExtraordinary
+                                  ? 'border border-emerald-500/30 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : 'bg-warning/35 text-warning-foreground'
+                              )}
+                              title={EXCEPTION_LABELS[type] || type}
+                            >
+                              {EXCEPTION_LABELS[type] || type}
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -345,7 +387,11 @@ export function MonthCalendar({
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="size-3 rounded-xs border border-warning/50 bg-warning/25" aria-hidden="true" />
-                  <span>Con excepción</span>
+                  <span>Ausencia / No laborable</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="size-3 rounded-xs border border-emerald-500/50 bg-emerald-500/25" aria-hidden="true" />
+                  <span>Habilitación extraordinaria</span>
                 </div>
               </div>
             </div>

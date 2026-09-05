@@ -6,6 +6,8 @@ export const AvailabilitySignal = ({
   brechas = [], 
   bloqueos = [],
   bloqueosHorario = [],
+  habilitaciones = [],
+  habilitacionesExtraordinarias = [],
   dayStart = '07:00', 
   dayEnd = '21:00', 
   variant = 'compact',
@@ -17,10 +19,13 @@ export const AvailabilitySignal = ({
 }) => {
   const isSummary = totalMinutes !== undefined;
   const effectiveBloqueos = (bloqueos && bloqueos.length > 0) ? bloqueos : (bloqueosHorario || []);
+  const effectiveHabilitaciones = (habilitaciones && habilitaciones.length > 0)
+    ? habilitaciones
+    : (habilitacionesExtraordinarias || []);
 
   const segments = useMemo(() => 
-    isSummary ? [] : gapsToSignalSegments(brechas, dayStart, dayEnd, effectiveBloqueos),
-  [isSummary, brechas, dayStart, dayEnd, effectiveBloqueos]);
+    isSummary ? [] : gapsToSignalSegments(brechas, dayStart, dayEnd, effectiveBloqueos, effectiveHabilitaciones),
+  [isSummary, brechas, dayStart, dayEnd, effectiveBloqueos, effectiveHabilitaciones]);
 
   if (isSummary) {
     const percentage = maxMinutes > 0 ? (totalMinutes / maxMinutes) * 100 : 0;
@@ -66,6 +71,9 @@ export const AvailabilitySignal = ({
           if (seg.isBlocked || seg.status === 'blocked') {
             segColorClass = "bg-orange-500 hover:brightness-95";
             segTitle = `Bloqueado: ${seg.start} - ${seg.end}`;
+          } else if (seg.isExtraordinary || seg.status === 'extraordinary') {
+            segColorClass = "bg-emerald-500 hover:brightness-95";
+            segTitle = `Habilitación extraordinaria: ${seg.start} - ${seg.end}`;
           } else if (seg.isAvailable || seg.status === 'available') {
             segColorClass = "bg-ring hover:brightness-95";
             segTitle = `Disponible: ${seg.start} - ${seg.end}`;

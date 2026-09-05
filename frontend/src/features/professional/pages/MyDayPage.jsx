@@ -138,6 +138,7 @@ export function MyDayPage() {
     fecha: dateStr,
     estadoActual: temporalStatus,
     brechas: dayDetail?.brechas || [],
+    tiposExcepcion: dayInfo?.tiposExcepcion ?? dayInfo?.excepciones ?? [],
   };
 
   return (

@@ -229,13 +229,17 @@ export function totalAvailableMinutes(brechas, bloqueos = []) {
  * @param {Array<{horaInicio: string, horaFin: string}>} [bloqueos=[]]
  * @returns {Array<{start: string, end: string, isAvailable: boolean, isBlocked: boolean, status: string}>}
  */
-export function gapsToSignalSegments(brechas, dayStart = '07:00', dayEnd = '21:00', bloqueos = []) {
+export function gapsToSignalSegments(brechas, dayStart = '07:00', dayEnd = '21:00', bloqueos = [], habilitaciones = []) {
   const startMin = timeToMinutes(dayStart);
   const endMin = timeToMinutes(dayEnd);
 
   if (endMin <= startMin) return [];
 
-  const effectiveGaps = subtractGaps(brechas, bloqueos);
+  const rawHabilitaciones = (habilitaciones || []).filter((h) => h && h.horaInicio && h.horaFin);
+  const regularBrechas = rawHabilitaciones.length > 0 ? subtractGaps(brechas, rawHabilitaciones) : (brechas || []);
+
+  const effectiveGaps = subtractGaps(regularBrechas, bloqueos);
+  const effectiveHabilitaciones = subtractGaps(rawHabilitaciones, bloqueos);
 
   const validBloqueos = (bloqueos || [])
     .filter((b) => b && b.horaInicio && b.horaFin)
@@ -274,6 +278,18 @@ export function gapsToSignalSegments(brechas, dayStart = '07:00', dayEnd = '21:0
     }
   }
 
+  for (const hab of effectiveHabilitaciones) {
+    const hStart = Math.max(timeToMinutes(hab.horaInicio), startMin);
+    const hEnd = Math.min(timeToMinutes(hab.horaFin), endMin);
+    if (hEnd > hStart) {
+      markedIntervals.push({
+        start: hStart,
+        end: hEnd,
+        status: 'extraordinary',
+      });
+    }
+  }
+
   for (const b of mergedBloqueos) {
     if (b.end > b.start) {
       markedIntervals.push({
@@ -306,7 +322,7 @@ export function gapsToSignalSegments(brechas, dayStart = '07:00', dayEnd = '21:0
         segments.push({
           start: minutesToTime(effectiveStart),
           end: minutesToTime(interval.end),
-          isAvailable: interval.status === 'available',
+          isAvailable: interval.status === 'available' || interval.status === 'extraordinary',
           isBlocked: interval.status === 'blocked',
           status: interval.status,
         });

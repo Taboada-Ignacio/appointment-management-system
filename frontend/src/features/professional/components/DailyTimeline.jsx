@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isToday, formatDateLong } from '../../../utils/dates';
-import { formatTimeRange, timeToMinutes } from '../../../utils/gaps';
+import { formatTimeRange, timeToMinutes, subtractGaps } from '../../../utils/gaps';
 import { deriveTemporalStatus } from '../../../utils/status';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
 import { AvailabilitySignal } from '../../../components/ui/AvailabilitySignal';
@@ -55,14 +55,45 @@ export function DailyTimeline({
   }
 
   const { fecha, estadoActual, brechas = [], bloqueosHorario = [] } = day;
+  const rawExceptions = day.tiposExcepcion ?? day.excepciones ?? [];
+  const exceptionTypes = Array.isArray(rawExceptions)
+    ? rawExceptions
+        .filter((item) => typeof item === 'string' || item?.activa !== false)
+        .map((item) => (typeof item === 'string' ? item : item?.tipo || String(item)))
+    : [];
+
+  const rawHabilitaciones = day.habilitacionesExtraordinarias ?? day.habilitaciones ?? (
+    Array.isArray(day.excepciones)
+      ? day.excepciones
+          .filter((e) => typeof e === 'object' && (e.tipo === 'HABILITACION_EXTRAORDINARIA' || e.tipoExcepcion === 'HABILITACION_EXTRAORDINARIA') && e.activa !== false)
+          .flatMap((e) => e.intervalos || (e.horaInicio && e.horaFin ? [{ horaInicio: e.horaInicio, horaFin: e.horaFin }] : []))
+      : []
+  );
+  const habilitaciones = Array.isArray(rawHabilitaciones) ? rawHabilitaciones : [];
+  const hasExtraordinary = exceptionTypes.includes('HABILITACION_EXTRAORDINARIA') || habilitaciones.length > 0;
+
+  const rawModificaciones = day.modificacionesHorarias ?? day.modificaciones ?? (
+    Array.isArray(day.excepciones)
+      ? day.excepciones
+          .filter((e) => typeof e === 'object' && (e.tipo === 'MODIFICACION_HORARIO' || e.tipoExcepcion === 'MODIFICACION_HORARIO') && e.activa !== false)
+          .flatMap((e) => e.intervalos || (e.horaInicio && e.horaFin ? [{ horaInicio: e.horaInicio, horaFin: e.horaFin }] : []))
+      : []
+  );
+  const modificaciones = Array.isArray(rawModificaciones) ? rawModificaciones : [];
+
+  const brechasBase = modificaciones.length > 0 ? modificaciones : brechas;
+  const todasBrechas = brechasBase.length > 0 ? brechasBase : habilitaciones;
   const derivedStatus = deriveTemporalStatus(estadoActual, fecha, timezone);
+  const brechasEfectivas = bloqueosHorario.length > 0
+    ? subtractGaps(todasBrechas, bloqueosHorario)
+    : todasBrechas;
 
   // Dynamic range calculation:
   // Starts at the first gap's hour and finishes one hour after the last gap's hour
   let startHour = 8;
   let endHour = 18;
 
-  const intervalosVisibles = [...brechas, ...bloqueosHorario];
+  const intervalosVisibles = [...todasBrechas, ...bloqueosHorario, ...habilitaciones];
   if (intervalosVisibles.length > 0) {
     const startMinutesList = intervalosVisibles.map((b) => timeToMinutes(b.horaInicio));
     const endMinutesList = intervalosVisibles.map((b) => timeToMinutes(b.horaFin));
@@ -106,7 +137,7 @@ export function DailyTimeline({
   };
 
   const renderGaps = () => {
-    return brechas.map((gap, idx) => {
+    return brechasEfectivas.map((gap, idx) => {
       const startMin = timeToMinutes(gap.horaInicio);
       const endMin = timeToMinutes(gap.horaFin);
 
@@ -117,6 +148,37 @@ export function DailyTimeline({
 
       const topPerc = ((adjustedStart - startHour * 60) / totalMinutes) * 100;
       const heightPerc = ((adjustedEnd - adjustedStart) / totalMinutes) * 100;
+
+      const isExtraordinaryGap = habilitaciones.some((h) => {
+        const hStart = timeToMinutes(h.horaInicio);
+        const hEnd = timeToMinutes(h.horaFin);
+        return Math.max(startMin, hStart) < Math.min(endMin, hEnd);
+      });
+
+      if (isExtraordinaryGap) {
+        return (
+          <div
+            key={idx}
+            className="absolute left-14 right-2 flex items-center overflow-hidden rounded-lg border border-emerald-500/40 bg-emerald-50/90 dark:bg-emerald-950/40 px-4 text-xs font-semibold text-emerald-950 dark:text-emerald-100 shadow-xs transition hover:bg-emerald-100/80"
+            style={{
+              top: `${topPerc}%`,
+              height: `${heightPerc}%`,
+              minHeight: '28px',
+              borderLeft: '3px solid #10b981',
+            }}
+          >
+            <div className="flex items-center gap-2 truncate">
+              <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
+              <span className="font-heading tracking-tight">
+                {formatTimeRange(gap.horaInicio, gap.horaFin)}
+              </span>
+              <span className="hidden text-[11px] font-normal text-emerald-700 dark:text-emerald-300 sm:inline">
+                · Habilitación extraordinaria disponible
+              </span>
+            </div>
+          </div>
+        );
+      }
 
       return (
         <div
@@ -182,6 +244,13 @@ export function DailyTimeline({
         )}
       </div>
 
+      {hasExtraordinary && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-50 px-3.5 py-2.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+          <span className="size-2 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+          <span>Día con habilitación extraordinaria de atención</span>
+        </div>
+      )}
+
       <IntegrationNotice title="Consulta de turnos no disponible">
         El backend no expone un endpoint para listar los turnos asignados a este día. La visualización se limita a las brechas horarias de atención configuradas.
       </IntegrationNotice>
@@ -196,12 +265,57 @@ export function DailyTimeline({
           </span>
         </div>
         <AvailabilitySignal
-          brechas={brechas}
+          brechas={todasBrechas}
+          bloqueos={bloqueosHorario}
+          habilitaciones={habilitaciones}
           dayStart={displayStartHour}
           dayEnd={displayEndHour}
           variant="detailed"
         />
-        {bloqueosHorario.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{bloqueosHorario.map((gap,index)=><span key={`${gap.horaInicio}-${gap.horaFin}-${index}`} className="rounded-md bg-orange-500 px-2 py-1 text-[10px] font-bold text-white">Bloqueado {formatTimeRange(gap.horaInicio,gap.horaFin)}</span>)}</div>}
+        {(bloqueosHorario.length > 0 || habilitaciones.length > 0) && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full bg-ring" aria-hidden="true" />
+              <span>Disponible para turnos</span>
+            </div>
+            {habilitaciones.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="size-2.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                <span>Habilitación extraordinaria</span>
+              </div>
+            )}
+            {bloqueosHorario.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="size-2.5 rounded-full bg-orange-500" aria-hidden="true" />
+                <span>Bloqueo de horario</span>
+              </div>
+            )}
+            {habilitaciones.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {habilitaciones.map((gap, index) => (
+                  <span
+                    key={`hab-${gap.horaInicio}-${gap.horaFin}-${index}`}
+                    className="rounded-md bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white"
+                  >
+                    Habilitado {formatTimeRange(gap.horaInicio, gap.horaFin)}
+                  </span>
+                ))}
+              </div>
+            )}
+            {bloqueosHorario.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {bloqueosHorario.map((gap, index) => (
+                  <span
+                    key={`${gap.horaInicio}-${gap.horaFin}-${index}`}
+                    className="rounded-md bg-orange-500 px-2 py-1 text-[10px] font-bold text-white"
+                  >
+                    Bloqueado {formatTimeRange(gap.horaInicio, gap.horaFin)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       <ScrollArea className="relative mt-2 h-[min(68vh,44rem)] min-h-[440px] pr-3">

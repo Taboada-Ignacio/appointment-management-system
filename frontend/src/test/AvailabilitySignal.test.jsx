@@ -63,5 +63,23 @@ describe('AvailabilitySignal Component', () => {
     expect(secondAvailable).toBeInTheDocument();
     expect(secondAvailable.className).toContain('bg-ring');
   });
+
+  it('renders extraordinary segments in emerald when habilitaciones is provided', () => {
+    const habilitaciones = [{ horaInicio: '09:00', horaFin: '13:00' }];
+
+    const { container } = render(
+      <AvailabilitySignal
+        habilitaciones={habilitaciones}
+        dayStart="08:00"
+        dayEnd="14:00"
+      />
+    );
+
+    const extraordinarySegment = container.querySelector(
+      '[title="Habilitación extraordinaria: 09:00 - 13:00"]'
+    );
+    expect(extraordinarySegment).toBeInTheDocument();
+    expect(extraordinarySegment.className).toContain('bg-emerald-500');
+  });
 });
 

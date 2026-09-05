@@ -73,14 +73,27 @@ public class ObtenerDetalleMesAgenda {
         List<DiaAgendaResumenResponseDto> diasDto = dias.stream()
                 .sorted(Comparator.comparing(DiaAgenda::getFecha))
                 .map(dia -> {
-                    int cantBrechas = brechaHorariaRepository.findByDiaAgendaId(dia.getId()).size();
+                    var modificacionesDia = excepciones.stream()
+                            .filter(com.apiturnos.agenda.model.ExcepcionAgenda::isActiva)
+                            .filter(excepcion -> excepcion.aplicaEn(dia.getFecha()))
+                            .filter(excepcion -> excepcion.getTipo() == com.apiturnos.agenda.model.TipoExcepcion.MODIFICACION_HORARIO)
+                            .toList();
+                    int cantBrechas = modificacionesDia.isEmpty()
+                            ? brechaHorariaRepository.findByDiaAgendaId(dia.getId()).size()
+                            : modificacionesDia.stream().mapToInt(e -> e.obtenerIntervalos().size()).sum();
+                    int cantBrechasHabilitadas = excepciones.stream()
+                            .filter(com.apiturnos.agenda.model.ExcepcionAgenda::isActiva)
+                            .filter(excepcion -> excepcion.aplicaEn(dia.getFecha()))
+                            .filter(excepcion -> excepcion.getTipo() == com.apiturnos.agenda.model.TipoExcepcion.HABILITACION_EXTRAORDINARIA)
+                            .mapToInt(excepcion -> excepcion.obtenerIntervalos().size())
+                            .sum();
                     var tiposExcepcion = excepciones.stream()
                             .filter(com.apiturnos.agenda.model.ExcepcionAgenda::isActiva)
                             .filter(excepcion -> excepcion.aplicaEn(dia.getFecha()))
                             .map(com.apiturnos.agenda.model.ExcepcionAgenda::getTipo)
                             .distinct()
                             .toList();
-                    return new DiaAgendaResumenResponseDto(dia, cantBrechas,
+                    return new DiaAgendaResumenResponseDto(dia, cantBrechas + cantBrechasHabilitadas,
                             turnosPorDia.getOrDefault(dia.getId(), 0L).intValue(), tiposExcepcion,
                             estadosDiasMap.get(dia.getId()));
                 })
