@@ -261,4 +261,157 @@ describe('AbsenceManagementPage', () => {
     const motives = rows.map((r) => r.querySelectorAll('td')[2]?.textContent);
     expect(motives).toEqual(['Jornada reducida', 'Guardia fin de semana', 'Vacaciones invierno']);
   });
+
+  it('renderiza KPIs superiores, dropdown de creación y panel colapsable en ExceptionsPanel', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url.includes('/turnos-afectados')) {
+        return [
+          { turnoId: 101, excepcionId: 1, resolucion: 'PENDIENTE', nombreCliente: 'Ana Gomez' },
+        ];
+      }
+      return [
+        {
+          id: 1,
+          tipo: 'VACACIONES',
+          motivo: 'Vacaciones de invierno',
+          fechaInicio: '2026-07-01',
+          fechaFin: '2026-07-15',
+          activa: true,
+          brechas: [],
+          fechasExcluidas: [],
+          fechaCreacion: '2026-06-01T10:00:00Z',
+        },
+        {
+          id: 2,
+          tipo: 'BLOQUEO_HORARIO',
+          motivo: 'Trámite particular',
+          fechaInicio: '2026-09-10',
+          fechaFin: '2026-09-10',
+          activa: true,
+          brechas: [{ horaInicio: '10:00', horaFin: '12:00' }],
+          fechasExcluidas: [],
+          fechaCreacion: '2026-09-01T08:00:00Z',
+        },
+      ];
+    });
+
+    renderPage('exceptions');
+
+    // 1c: Verifica renderizado de KPIs superiores
+    expect(await screen.findByText('Vigentes hoy')).toBeInTheDocument();
+    expect(screen.getByText('Próximos 30 días')).toBeInTheDocument();
+    expect(screen.getByText('Con turnos pendientes')).toBeInTheDocument();
+    expect(screen.getByText('Total registradas')).toBeInTheDocument();
+
+    // 2c: Verifica dropdown de Nueva excepción
+    const newButton = screen.getByRole('button', { name: /Nueva excepción/i });
+    expect(newButton).toBeInTheDocument();
+    fireEvent.pointerDown(newButton, { button: 0, pointerType: 'mouse' });
+    fireEvent.keyDown(newButton, { key: 'ArrowDown' });
+    expect(await screen.findByText('Ausencia / Vacaciones')).toBeInTheDocument();
+    expect(screen.getByText('Habilitación Extraordinaria')).toBeInTheDocument();
+    expect(screen.getByText('Modificación de Horario')).toBeInTheDocument();
+
+    // Cierra el dropdown para remover el bloqueo de aria-hidden del resto de la página
+    fireEvent.keyDown(document.activeElement || document.body, { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByText('Ausencia / Vacaciones')).not.toBeInTheDocument();
+    });
+
+    // 3c: Verifica toggle y despliegue del panel colapsable de filtros avanzados
+    const advancedToggle = screen.getByRole('button', { name: /Filtros avanzados/i });
+    fireEvent.click(advancedToggle);
+    expect(await screen.findByText('Estado de la excepción')).toBeInTheDocument();
+    expect(screen.getByText('Período temporal rápido')).toBeInTheDocument();
+    expect(screen.getByText('Solo con turnos pendientes')).toBeInTheDocument();
+
+    // 4b y 7b: Verifica datos operativos en la tabla (franjas, duración, botón de turnos afectados)
+    expect(screen.getByText('10:00–12:00')).toBeInTheDocument();
+    expect(screen.getByText('15 días')).toBeInTheDocument();
+    expect(screen.getByText(/1 turnos \(1 pend\.\)/)).toBeInTheDocument();
+
+    // 6b: Abre el Sheet modular y verifica sus bloques
+    const verButtons = screen.getAllByRole('button', { name: /Ver/ });
+    fireEvent.click(verButtons[0]);
+
+    expect(await screen.findByText(/Detalle de la excepción/)).toBeInTheDocument();
+    expect(screen.getByText('Período y Horarios')).toBeInTheDocument();
+    expect(screen.getByText('Motivo registrado')).toBeInTheDocument();
+    expect(screen.getByText('Trazabilidad')).toBeInTheDocument();
+    expect(screen.getByText('Ver en Mi mes')).toBeInTheDocument();
+  });
+
+  it('permite filtrar interactivamente desde las tarjetas KPI y limpiar filtros', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url.includes('/turnos-afectados')) {
+        return [{ turnoId: 101, excepcionId: 1, resolucion: 'PENDIENTE', nombreCliente: 'Ana' }];
+      }
+      return [
+        { id: 1, tipo: 'VACACIONES', motivo: 'Vacaciones de invierno', fechaInicio: '2026-07-01', fechaFin: '2026-07-15', activa: true },
+        { id: 2, tipo: 'BLOQUEO_HORARIO', motivo: 'Capacitación interna', fechaInicio: '2026-09-10', fechaFin: '2026-09-10', activa: true },
+      ];
+    });
+
+    renderPage('exceptions');
+
+    await screen.findAllByText('Vacaciones de invierno');
+    expect(screen.getAllByText('Capacitación interna').length).toBeGreaterThan(0);
+
+    // Click KPI "Con turnos pendientes"
+    const kpiPendientes = screen.getByText('Con turnos pendientes');
+    fireEvent.click(kpiPendientes);
+
+    // Solo debe verse Vacaciones de invierno (excepción 1)
+    expect(screen.getAllByText('Vacaciones de invierno').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Capacitación interna')).toHaveLength(0);
+
+    // Click en botón Limpiar
+    const limpiarButton = screen.getByRole('button', { name: /Limpiar/i });
+    fireEvent.click(limpiarButton);
+
+    // Ambos motivos deben estar presentes de nuevo
+    expect(screen.getAllByText('Vacaciones de invierno').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Capacitación interna').length).toBeGreaterThan(0);
+  });
+
+  it('filtra solo excepciones en estado futura en Próximos 30 días y ordena por fecha de registro (fechaCreacion desc)', async () => {
+    const today = new Date();
+    const pastDate = new Date(today.getTime() - 5 * 86400000).toISOString().slice(0, 10);
+    const futureDate1 = new Date(today.getTime() + 5 * 86400000).toISOString().slice(0, 10);
+    const futureDate2 = new Date(today.getTime() + 10 * 86400000).toISOString().slice(0, 10);
+    const futureDate3 = new Date(today.getTime() + 60 * 86400000).toISOString().slice(0, 10);
+
+    vi.spyOn(api, 'get').mockResolvedValue([
+      // Registrada primera (más antigua), pero para dentro de 60 días
+      { id: 1, tipo: 'VACACIONES', motivo: 'Registro antiguo para diciembre', fechaInicio: futureDate3, fechaFin: futureDate3, activa: true, fechaCreacion: '2026-01-01T10:00:00Z' },
+      // Registrada segunda, vigente hoy (inició en el pasado y termina en 5 días)
+      { id: 2, tipo: 'BLOQUEO_HORARIO', motivo: 'Vigente hoy', fechaInicio: pastDate, fechaFin: futureDate1, activa: true, fechaCreacion: '2026-02-01T10:00:00Z' },
+      // Registrada tercera, futura en 10 días
+      { id: 3, tipo: 'HABILITACION_EXTRAORDINARIA', motivo: 'Futura próxima A', fechaInicio: futureDate2, fechaFin: futureDate2, activa: true, fechaCreacion: '2026-03-01T10:00:00Z' },
+      // Registrada cuarta (la más reciente), futura en 5 días
+      { id: 4, tipo: 'MODIFICACION_HORARIO', motivo: 'Futura próxima B', fechaInicio: futureDate1, fechaFin: futureDate1, activa: true, fechaCreacion: '2026-04-01T10:00:00Z' },
+    ]);
+
+    renderPage('exceptions');
+
+    await screen.findAllByText('Futura próxima B');
+
+    // 1. Verifica orden por fechaCreacion descendente: 4, 3, 2, 1
+    const table = document.querySelector('tbody');
+    const rows = [...table.querySelectorAll('tr')];
+    const motives = rows.map((r) => r.querySelectorAll('td')[2]?.textContent);
+    expect(motives).toEqual(['Futura próxima B', 'Futura próxima A', 'Vigente hoy', 'Registro antiguo para diciembre']);
+
+    // 2. Clic en KPI "Próximos 30 días"
+    const kpi30 = screen.getByText('Próximos 30 días');
+    fireEvent.click(kpi30);
+
+    // Solo deben figurar en estado FUTURA dentro de los 30 días ('Futura próxima B' y 'Futura próxima A')
+    expect(screen.getAllByText('Futura próxima B').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Futura próxima A').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Vigente hoy')).toHaveLength(0);
+    expect(screen.queryAllByText('Registro antiguo para diciembre')).toHaveLength(0);
+  });
 });
+
+
