@@ -89,7 +89,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({
             DiaAgendaNoValidoException.class,
-            CapacidadAgotadaException.class,
             EstadoInvalidoException.class,
             EstadoClienteInvalidoException.class,
             TransicionEstadoInvalidaException.class,
@@ -107,6 +106,14 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(CapacidadAgotadaException.class)
+    public ResponseEntity<ErrorResponseDto> handleCapacidadAgotada(
+            CapacidadAgotadaException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponseDto(
+                HttpStatus.CONFLICT.value(), HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(), request.getRequestURI()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

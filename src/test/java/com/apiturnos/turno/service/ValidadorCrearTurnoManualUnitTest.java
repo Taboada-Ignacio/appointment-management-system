@@ -229,6 +229,14 @@ class ValidadorCrearTurnoManualUnitTest {
         assertThat(resultado.datosConfirmacion().fecha()).isEqualTo(dia.getFecha());
     }
 
+    @Test
+    void duracionManualDiferenteRequiereAdvertencia() {
+        ValidadorCrearTurnoManual.ContextoValidado resultado = validador.validar(solicitud(14, 0, 14, 45));
+
+        assertThat(resultado.advertencias())
+                .containsExactly(AdvertenciaTurnoManual.DURACION_DIFERENTE_AL_TIPO_ATENCION);
+    }
+
     private void assertRechazo(SolicitudCrearTurnoManual solicitud, MotivoRechazoTurnoManual motivo) {
         assertThatThrownBy(() -> validador.validar(solicitud))
                 .isInstanceOf(TurnoManualNoPermitidoException.class)

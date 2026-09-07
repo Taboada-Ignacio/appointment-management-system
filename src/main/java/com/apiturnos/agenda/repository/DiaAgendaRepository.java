@@ -3,6 +3,7 @@ package com.apiturnos.agenda.repository;
 import com.apiturnos.agenda.model.DiaAgenda;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface DiaAgendaRepository extends JpaRepository<DiaAgenda, Long> {
@@ -35,6 +37,11 @@ public interface DiaAgendaRepository extends JpaRepository<DiaAgenda, Long> {
     Optional<DiaAgenda> findByIdAndProfesionalId(
             @Param("id") Long id,
             @Param("profesionalId") Long profesionalId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT d FROM DiaAgenda d JOIN FETCH d.mesAgenda m JOIN FETCH m.agendaAnual a " +
+           "JOIN FETCH a.profesional p WHERE d.id = :id")
+    Optional<DiaAgenda> findByIdForUpdate(@Param("id") Long id);
 
     @Query("SELECT d FROM DiaAgenda d JOIN d.mesAgenda m JOIN m.agendaAnual a " +
            "WHERE a.profesional.id = :profesionalId AND d.fecha BETWEEN :desde AND :hasta")

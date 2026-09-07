@@ -101,7 +101,7 @@ public class CrearTurno {
                                Instant inicioEstimado, Instant finEstimado, OrigenTurno origen,
                                boolean confirmarSobrecapacidad, String observaciones,
                                String usuario) {
-        DiaAgenda diaAgenda = diaAgendaRepository.findById(diaAgendaId)
+        DiaAgenda diaAgenda = diaAgendaRepository.findByIdForUpdate(diaAgendaId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("DiaAgenda", diaAgendaId));
 
         Cliente cliente = clienteRepository.findById(clienteId)
@@ -125,6 +125,18 @@ public class CrearTurno {
 
             if (!tipoAtencion.isActivo()) {
                 throw new NegocioException("El tipo de atención '" + tipoAtencion.getNombre() + "' está inactivo y no admite nuevos turnos");
+            }
+
+            if (origen == OrigenTurno.CLIENTE_AUTOGESTION) {
+                Configuracion config = configuracionRepository.findByProfesionalId(profesionalAgenda.getId())
+                        .orElse(null);
+                if (config != null && Boolean.TRUE.equals(config.getAgendaSoloManejadaPorProfesional())) {
+                    throw new NegocioException("La agenda del profesional no admite autogestión");
+                }
+                Instant finPorDuracion = inicioEstimado.plusSeconds(tipoAtencion.getDuracionMinutos() * 60L);
+                if (!finPorDuracion.equals(finEstimado)) {
+                    throw new NegocioException("La duración del turno de autogestión debe coincidir con el tipo de atención");
+                }
             }
 
             if (origen == OrigenTurno.CLIENTE_AUTOGESTION) {

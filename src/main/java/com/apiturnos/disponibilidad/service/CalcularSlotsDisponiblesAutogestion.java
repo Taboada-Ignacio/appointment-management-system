@@ -9,6 +9,8 @@ import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import com.apiturnos.shared.exception.NegocioException;
 import com.apiturnos.shared.exception.TipoAtencionNoPerteneceProfesionalException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.apiturnos.profesional.repository.ConfiguracionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,16 +28,29 @@ public class CalcularSlotsDisponiblesAutogestion {
     private final CalcularDisponibilidadDia calcularDisponibilidadDia;
     private final VerificarCapacidadTipoAtencion verificarCapacidadTipoAtencion;
     private final ZoneId zoneId;
+    private final ConfiguracionRepository configuracionRepository;
 
     public CalcularSlotsDisponiblesAutogestion(
             TipoAtencionRepository tipoAtencionRepository,
             CalcularDisponibilidadDia calcularDisponibilidadDia,
             VerificarCapacidadTipoAtencion verificarCapacidadTipoAtencion,
             @Value("${turnos.zona-horaria:America/Argentina/Buenos_Aires}") String zonaHoraria) {
+        this(tipoAtencionRepository, calcularDisponibilidadDia, verificarCapacidadTipoAtencion,
+                zonaHoraria, null);
+    }
+
+    @Autowired
+    public CalcularSlotsDisponiblesAutogestion(
+            TipoAtencionRepository tipoAtencionRepository,
+            CalcularDisponibilidadDia calcularDisponibilidadDia,
+            VerificarCapacidadTipoAtencion verificarCapacidadTipoAtencion,
+            @Value("${turnos.zona-horaria:America/Argentina/Buenos_Aires}") String zonaHoraria,
+            ConfiguracionRepository configuracionRepository) {
         this.tipoAtencionRepository = tipoAtencionRepository;
         this.calcularDisponibilidadDia = calcularDisponibilidadDia;
         this.verificarCapacidadTipoAtencion = verificarCapacidadTipoAtencion;
         this.zoneId = ZoneId.of(zonaHoraria);
+        this.configuracionRepository = configuracionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -48,6 +63,10 @@ public class CalcularSlotsDisponiblesAutogestion {
         }
         if (fecha == null) {
             throw new NegocioException("La fecha es obligatoria");
+        }
+        if (configuracionRepository != null && configuracionRepository.findByProfesionalId(profesionalId)
+                .map(c -> Boolean.TRUE.equals(c.getAgendaSoloManejadaPorProfesional())).orElse(false)) {
+            return List.of();
         }
 
         TipoAtencion tipo = tipoAtencionRepository.findById(tipoAtencionId)

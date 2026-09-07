@@ -25,6 +25,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -102,6 +103,12 @@ public class ValidadorCrearTurnoManual {
         List<AdvertenciaTurnoManual> advertencias = new ArrayList<>(
                 evaluadorDisponibilidad.evaluar(dia, estadoDia, intervalo, brechas, excepciones));
 
+        long duracionSolicitada = Duration.between(
+                solicitud.inicioEstimado(), solicitud.finEstimado()).toMinutes();
+        if (duracionSolicitada != tipoAtencion.getDuracionMinutos()) {
+            advertencias.add(AdvertenciaTurnoManual.DURACION_DIFERENTE_AL_TIPO_ATENCION);
+        }
+
         VerificarCapacidadTipoAtencion.ResultadoCapacidad capacidad =
                 verificadorCapacidad.evaluar(
                         tipoAtencion,
@@ -124,7 +131,8 @@ public class ValidadorCrearTurnoManual {
                 tipoAtencion.getId(),
                 tipoAtencion.getNombre());
 
-        return new ContextoValidado(dia, cliente, tipoAtencion, List.copyOf(advertencias), datos);
+        return new ContextoValidado(dia, cliente, tipoAtencion, List.copyOf(advertencias), datos,
+                capacidad.capacidadMaxima(), capacidad.turnosConcurrentes());
     }
 
     private void validarDatosObligatorios(SolicitudCrearTurnoManual solicitud) {
@@ -205,6 +213,15 @@ public class ValidadorCrearTurnoManual {
             Cliente cliente,
             TipoAtencion tipoAtencion,
             List<AdvertenciaTurnoManual> advertencias,
-            DatosConfirmacionTurnoManual datosConfirmacion) {
+            DatosConfirmacionTurnoManual datosConfirmacion,
+            int capacidadMaxima,
+            int turnosConcurrentes) {
+        public ContextoValidado(DiaAgenda diaAgenda, Cliente cliente, TipoAtencion tipoAtencion,
+                                List<AdvertenciaTurnoManual> advertencias,
+                                DatosConfirmacionTurnoManual datosConfirmacion) {
+            this(diaAgenda, cliente, tipoAtencion, advertencias, datosConfirmacion,
+                    tipoAtencion != null && tipoAtencion.getCapacidadSimultanea() != null
+                            ? tipoAtencion.getCapacidadSimultanea() : 1, 0);
+        }
     }
 }

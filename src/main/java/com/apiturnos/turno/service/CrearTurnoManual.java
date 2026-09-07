@@ -10,7 +10,11 @@ import com.apiturnos.turno.model.OrigenTurno;
 import com.apiturnos.turno.model.Turno;
 import com.apiturnos.turno.repository.TurnoRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.Duration;
+import com.apiturnos.agenda.repository.DiaAgendaRepository;
+import com.apiturnos.shared.exception.NegocioException;
 
 @Service
 public class CrearTurnoManual {
@@ -20,6 +24,8 @@ public class CrearTurnoManual {
     private final GestorCambioEstado gestorCambioEstado;
     private final RegistradorAuditoria registradorAuditoria;
     private final RegistradorNotificacion registradorNotificacion;
+    private final TokenConfirmacionTurnoManual tokenConfirmacion;
+    private final DiaAgendaRepository diaAgendaRepository;
 
     public CrearTurnoManual(
             ValidadorCrearTurnoManual validador,
@@ -27,18 +33,65 @@ public class CrearTurnoManual {
             GestorCambioEstado gestorCambioEstado,
             RegistradorAuditoria registradorAuditoria,
             RegistradorNotificacion registradorNotificacion) {
+        this(validador, turnoRepository, gestorCambioEstado, registradorAuditoria, registradorNotificacion, null, null);
+    }
+
+    @Autowired
+    public CrearTurnoManual(
+            ValidadorCrearTurnoManual validador,
+            TurnoRepository turnoRepository,
+            GestorCambioEstado gestorCambioEstado,
+            RegistradorAuditoria registradorAuditoria,
+            RegistradorNotificacion registradorNotificacion,
+            TokenConfirmacionTurnoManual tokenConfirmacion,
+            DiaAgendaRepository diaAgendaRepository) {
         this.validador = validador;
         this.turnoRepository = turnoRepository;
         this.gestorCambioEstado = gestorCambioEstado;
         this.registradorAuditoria = registradorAuditoria;
         this.registradorNotificacion = registradorNotificacion;
+        this.tokenConfirmacion = tokenConfirmacion;
+        this.diaAgendaRepository = diaAgendaRepository;
     }
 
     @Transactional
     public ResultadoCrearTurnoManual ejecutar(SolicitudCrearTurnoManual solicitud) {
+        return ejecutar(solicitud, null);
+    }
+
+    public String emitirTokenConfirmacion(SolicitudCrearTurnoManual solicitud,
+                                           ValidadorCrearTurnoManual.ContextoValidado contexto) {
+        if (tokenConfirmacion == null || contexto.advertencias().isEmpty()) return null;
+        return tokenConfirmacion.emitir(solicitud, contexto.advertencias(),
+                contexto.capacidadMaxima(), contexto.turnosConcurrentes());
+    }
+
+    @Transactional
+    public ResultadoCrearTurnoManual ejecutar(SolicitudCrearTurnoManual solicitud, String token) {
+        if (diaAgendaRepository != null) {
+            diaAgendaRepository.findByIdForUpdate(solicitud.diaAgendaId());
+        }
         ValidadorCrearTurnoManual.ContextoValidado contexto = validador.validar(solicitud);
 
-        if (!contexto.advertencias().isEmpty() && !solicitud.confirmarAdvertencias()) {
+        if (!contexto.advertencias().isEmpty() && tokenConfirmacion != null) {
+            if ((token == null || token.isBlank()) && !solicitud.confirmarAdvertencias()) {
+                String emitido = tokenConfirmacion.emitir(solicitud, contexto.advertencias(),
+                        contexto.capacidadMaxima(), contexto.turnosConcurrentes());
+                return ResultadoCrearTurnoManual.requiereConfirmacion(
+                        contexto.advertencias(), contexto.datosConfirmacion(), emitido);
+            }
+            if (token != null && !token.isBlank()) {
+                try {
+                    tokenConfirmacion.validarYConsumir(token, solicitud, contexto.advertencias(),
+                            contexto.capacidadMaxima(), contexto.turnosConcurrentes());
+                } catch (NegocioException confirmacionDesactualizada) {
+                    String renovado = tokenConfirmacion.emitir(solicitud, contexto.advertencias(),
+                            contexto.capacidadMaxima(), contexto.turnosConcurrentes());
+                    return ResultadoCrearTurnoManual.requiereConfirmacion(
+                            contexto.advertencias(), contexto.datosConfirmacion(), renovado);
+                }
+            }
+        } else if (!contexto.advertencias().isEmpty() && !solicitud.confirmarAdvertencias()) {
             return ResultadoCrearTurnoManual.requiereConfirmacion(
                     contexto.advertencias(), contexto.datosConfirmacion());
         }
@@ -62,7 +115,13 @@ public class CrearTurnoManual {
 
         String detalleAuditoria = "TURNO_CREADO_MANUALMENTE; estado=ASIGNADO; tipoAtencion="
                 + contexto.tipoAtencion().getNombre()
-                + "; advertencias=" + contexto.advertencias();
+                + "; duracionConfigurada=" + contexto.tipoAtencion().getDuracionMinutos()
+                + "; duracionSolicitada=" + Duration.between(solicitud.inicioEstimado(), solicitud.finEstimado()).toMinutes()
+                + "; capacidad=" + contexto.capacidadMaxima()
+                + "; concurrenciaPrevia=" + contexto.turnosConcurrentes()
+                + "; concurrenciaResultante=" + (contexto.turnosConcurrentes() + 1)
+                + "; advertenciasConfirmadas=" + contexto.advertencias()
+                + "; mecanismoConfirmacion=" + (token != null ? "TOKEN" : solicitud.confirmarAdvertencias() ? "LEGACY" : "NO_REQUERIDA");
         registradorAuditoria.registrar(
                 "TURNO",
                 "Turno",

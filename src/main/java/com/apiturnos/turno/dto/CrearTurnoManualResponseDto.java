@@ -25,6 +25,7 @@ public class CrearTurnoManualResponseDto {
     private Instant inicioEstimado;
     private Instant finEstimado;
     private String observaciones;
+    private String tokenConfirmacion;
 
     public CrearTurnoManualResponseDto() {
     }
@@ -48,6 +49,7 @@ public class CrearTurnoManualResponseDto {
         dto.inicioEstimado = inicioEstimado;
         dto.finEstimado = finEstimado;
         dto.observaciones = observaciones;
+        dto.tokenConfirmacion = resultado.tokenConfirmacion();
 
         DatosConfirmacionTurnoManual datos = resultado.datosConfirmacion();
         if (datos != null) {
@@ -157,6 +159,9 @@ public class CrearTurnoManualResponseDto {
     public void setAdvertencias(List<AdvertenciaTurnoManual> advertencias) {
         this.advertencias = advertencias;
     }
+
+    public String getTokenConfirmacion() { return tokenConfirmacion; }
+    public void setTokenConfirmacion(String tokenConfirmacion) { this.tokenConfirmacion = tokenConfirmacion; }
 
     public DatosConfirmacionResponseDto getDatosConfirmacion() {
         return datosConfirmacion;

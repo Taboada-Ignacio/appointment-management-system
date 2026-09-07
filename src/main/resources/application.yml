@@ -44,3 +44,6 @@ springdoc:
 
 turnos:
   zona-horaria: ${TURNOS_ZONA_HORARIA:America/Argentina/Buenos_Aires}
+  confirmacion:
+    secreto: ${TURNOS_CONFIRMACION_SECRETO:cambiar-este-secreto-en-produccion-32b}
+    vigencia: ${TURNOS_CONFIRMACION_VIGENCIA:PT5M}

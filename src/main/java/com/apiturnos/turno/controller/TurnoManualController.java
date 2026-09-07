@@ -97,6 +97,7 @@ public class TurnoManualController {
                 request.getInicioEstimado(),
                 request.getFinEstimado(),
                 request.getObservaciones());
+        response.setTokenConfirmacion(crearTurnoManual.emitirTokenConfirmacion(solicitud, contexto));
 
         return ResponseEntity.ok(response);
     }
@@ -119,7 +120,9 @@ public class TurnoManualController {
                 request.getObservaciones(),
                 usuario);
 
-        ResultadoCrearTurnoManual resultado = crearTurnoManual.ejecutar(solicitud);
+        ResultadoCrearTurnoManual resultado = request.getTokenConfirmacion() == null
+                ? crearTurnoManual.ejecutar(solicitud)
+                : crearTurnoManual.ejecutar(solicitud, request.getTokenConfirmacion());
 
         TipoAtencion tipo = tipoAtencionRepository.findById(request.getTipoAtencionId()).orElse(null);
         Integer duracionMinutos = tipo != null ? tipo.getDuracionMinutos() : null;

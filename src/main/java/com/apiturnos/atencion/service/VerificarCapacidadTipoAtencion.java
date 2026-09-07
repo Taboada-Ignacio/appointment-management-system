@@ -11,13 +11,13 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.Comparator;
 
 @Service
 public class VerificarCapacidadTipoAtencion {
 
-    private static final Set<String> ESTADOS_ACTIVOS = Set.of(
-            "ASIGNADO", "PENDIENTE_DE_APROBACION", "CONFIRMADO", "REPROGRAMADO", "AFECTADO_POR_EXCEPCION");
+    private static final String ESTADO_QUE_OCUPA_CAPACIDAD = "ASIGNADO";
 
     private final TurnoRepository turnoRepository;
     private final GestorCambioEstado gestorCambioEstado;
@@ -41,17 +41,30 @@ public class VerificarCapacidadTipoAtencion {
         Objects.requireNonNull(fin, "El fin estimado es obligatorio");
 
         List<Turno> solapados = turnoRepository.findTurnosSolapadosPorTipoAtencion(tipoAtencionId, inicio, fin);
-        int count = 0;
+        List<EventoConcurrencia> eventos = new ArrayList<>();
         for (Turno t : solapados) {
             if (excluirTurnoId != null && excluirTurnoId.equals(t.getId())) {
                 continue;
             }
             String estado = gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, t.getId());
-            if (estado != null && ESTADOS_ACTIVOS.contains(estado)) {
-                count++;
+            if (ESTADO_QUE_OCUPA_CAPACIDAD.equals(estado)) {
+                Instant desde = t.getInicioEstimado().isBefore(inicio) ? inicio : t.getInicioEstimado();
+                Instant hasta = t.getFinEstimado().isAfter(fin) ? fin : t.getFinEstimado();
+                if (desde.isBefore(hasta)) {
+                    eventos.add(new EventoConcurrencia(desde, 1));
+                    eventos.add(new EventoConcurrencia(hasta, -1));
+                }
             }
         }
-        return count;
+        eventos.sort(Comparator.comparing(EventoConcurrencia::instante)
+                .thenComparingInt(EventoConcurrencia::delta)); // los finales preceden a los inicios contiguos
+        int actuales = 0;
+        int maximo = 0;
+        for (EventoConcurrencia evento : eventos) {
+            actuales += evento.delta();
+            maximo = Math.max(maximo, actuales);
+        }
+        return maximo;
     }
 
     public ResultadoCapacidad evaluar(TipoAtencion tipoAtencion, Instant inicio, Instant fin, Long excluirTurnoId) {
@@ -73,6 +86,9 @@ public class VerificarCapacidadTipoAtencion {
     public boolean esSobrecapacidadManual(TipoAtencion tipoAtencion, Instant inicio, Instant fin) {
         ResultadoCapacidad resultado = evaluar(tipoAtencion, inicio, fin, null);
         return resultado.sobrecapacidad();
+    }
+
+    private record EventoConcurrencia(Instant instante, int delta) {
     }
 }
 

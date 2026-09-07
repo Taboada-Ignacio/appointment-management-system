@@ -112,8 +112,8 @@ class VerificarCapacidadTipoAtencionUnitTest {
         when(turnoRepository.findTurnosSolapadosPorTipoAtencion(2L, inicio, fin))
                 .thenReturn(List.of(t1, t2, t3));
         when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, 101L)).thenReturn("ASIGNADO");
-        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, 102L)).thenReturn("CONFIRMADO");
-        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, 103L)).thenReturn("PENDIENTE_DE_APROBACION");
+        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, 102L)).thenReturn("ASIGNADO");
+        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, 103L)).thenReturn("ASIGNADO");
 
         VerificarCapacidadTipoAtencion.ResultadoCapacidad r3 =
                 verificador.evaluar(tipoCapacidad3, inicio, fin, null);
@@ -176,6 +176,47 @@ class VerificarCapacidadTipoAtencionUnitTest {
         assertThat(resultado.turnosConcurrentes()).isEqualTo(0);
         assertThat(resultado.disponible()).isTrue();
         assertThat(resultado.sobrecapacidad()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Solo ASIGNADO ocupa capacidad; pendientes y el estado huérfano CONFIRMADO no la ocupan")
+    void soloAsignadoOcupaCapacidad() {
+        Instant inicio = baseTime;
+        Instant fin = baseTime.plusSeconds(1800);
+        Turno pendiente = crearTurnoMock(501L, inicio, fin);
+        Turno confirmadoHuerfano = crearTurnoMock(502L, inicio, fin);
+        when(turnoRepository.findTurnosSolapadosPorTipoAtencion(1L, inicio, fin))
+                .thenReturn(List.of(pendiente, confirmadoHuerfano));
+        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, 501L))
+                .thenReturn("PENDIENTE_DE_APROBACION");
+        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, 502L))
+                .thenReturn("CONFIRMADO");
+
+        assertThat(verificador.evaluar(tipoCapacidad1, inicio, fin, null).disponible()).isTrue();
+    }
+
+    @Test
+    @DisplayName("La capacidad usa el máximo simultáneo, no la cantidad total de intersecciones")
+    void intervalosEscalonadosNoProducenFalsoAgotamiento() {
+        TipoAtencion capacidad2 = new TipoAtencion();
+        capacidad2.setId(3L);
+        capacidad2.setCapacidadSimultanea(2);
+        Instant inicio = Instant.parse("2026-09-01T09:15:00Z");
+        Instant fin = Instant.parse("2026-09-01T09:45:00Z");
+        Turno primero = crearTurnoMock(601L, Instant.parse("2026-09-01T09:00:00Z"),
+                Instant.parse("2026-09-01T09:30:00Z"));
+        Turno segundo = crearTurnoMock(602L, Instant.parse("2026-09-01T09:30:00Z"),
+                Instant.parse("2026-09-01T10:00:00Z"));
+        when(turnoRepository.findTurnosSolapadosPorTipoAtencion(3L, inicio, fin))
+                .thenReturn(List.of(primero, segundo));
+        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, 601L)).thenReturn("ASIGNADO");
+        when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, 602L)).thenReturn("ASIGNADO");
+
+        VerificarCapacidadTipoAtencion.ResultadoCapacidad resultado =
+                verificador.evaluar(capacidad2, inicio, fin, null);
+
+        assertThat(resultado.turnosConcurrentes()).isEqualTo(1);
+        assertThat(resultado.disponible()).isTrue();
     }
 
     @Test

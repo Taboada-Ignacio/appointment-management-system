@@ -32,6 +32,7 @@ public class CrearTurnoManualRequestDto {
     private Instant finEstimado;
 
     private boolean confirmarAdvertencias = false;
+    private String tokenConfirmacion;
 
     private String observaciones;
 
@@ -141,6 +142,9 @@ public class CrearTurnoManualRequestDto {
     public void setConfirmarAdvertencias(boolean confirmarAdvertencias) {
         this.confirmarAdvertencias = confirmarAdvertencias;
     }
+
+    public String getTokenConfirmacion() { return tokenConfirmacion; }
+    public void setTokenConfirmacion(String tokenConfirmacion) { this.tokenConfirmacion = tokenConfirmacion; }
 
     public String getObservaciones() {
         return observaciones;

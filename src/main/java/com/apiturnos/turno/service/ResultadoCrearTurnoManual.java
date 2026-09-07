@@ -10,7 +10,14 @@ public record ResultadoCrearTurnoManual(
         boolean requiereConfirmacion,
         List<AdvertenciaTurnoManual> advertencias,
         DatosConfirmacionTurnoManual datosConfirmacion,
-        Long turnoId) {
+        Long turnoId,
+        String tokenConfirmacion) {
+
+    public ResultadoCrearTurnoManual(boolean creado, boolean puedeCrear, boolean requiereConfirmacion,
+            List<AdvertenciaTurnoManual> advertencias, DatosConfirmacionTurnoManual datosConfirmacion,
+            Long turnoId) {
+        this(creado, puedeCrear, requiereConfirmacion, advertencias, datosConfirmacion, turnoId, null);
+    }
 
     public ResultadoCrearTurnoManual {
         advertencias = List.copyOf(advertencias);
@@ -19,13 +26,18 @@ public record ResultadoCrearTurnoManual(
     public static ResultadoCrearTurnoManual requiereConfirmacion(
             List<AdvertenciaTurnoManual> advertencias,
             DatosConfirmacionTurnoManual datos) {
-        return new ResultadoCrearTurnoManual(false, true, true, advertencias, datos, null);
+        return new ResultadoCrearTurnoManual(false, true, true, advertencias, datos, null, null);
+    }
+
+    public static ResultadoCrearTurnoManual requiereConfirmacion(
+            List<AdvertenciaTurnoManual> advertencias, DatosConfirmacionTurnoManual datos, String token) {
+        return new ResultadoCrearTurnoManual(false, true, true, advertencias, datos, null, token);
     }
 
     public static ResultadoCrearTurnoManual creado(
             Long turnoId,
             List<AdvertenciaTurnoManual> advertencias,
             DatosConfirmacionTurnoManual datos) {
-        return new ResultadoCrearTurnoManual(true, true, false, advertencias, datos, turnoId);
+        return new ResultadoCrearTurnoManual(true, true, false, advertencias, datos, turnoId, null);
     }
 }
