@@ -101,6 +101,20 @@ class SugerirHorariosTurnoManualUnitTest {
     }
 
     @Test
+    void incluyeUltimoIntervaloAunqueExcedaLaBrechaYLoAdvierte() {
+        when(calcularDisponibilidadDia.ejecutar(1L, FECHA))
+                .thenReturn(List.of(new IntervaloHorario(LocalTime.of(8, 0), LocalTime.of(9, 10))));
+
+        List<HorarioSugeridoTurnoManual> resultado = casoDeUso.ejecutar(1L, 2L, FECHA);
+
+        assertThat(resultado).extracting(HorarioSugeridoTurnoManual::horaInicio)
+                .containsExactly(LocalTime.of(8, 0), LocalTime.of(8, 30), LocalTime.of(9, 0));
+        assertThat(resultado.get(2).horaFin()).isEqualTo(LocalTime.of(9, 30));
+        assertThat(resultado.get(2).advertencias())
+                .containsExactly(AdvertenciaTurnoManual.HORARIO_FUERA_DE_BRECHA);
+    }
+
+    @Test
     void noOcultaSobrecapacidadManualSinoQueLaAdvierte() {
         when(verificadorCapacidad.evaluar(any(), any(), any(), isNull()))
                 .thenReturn(new VerificarCapacidadTipoAtencion.ResultadoCapacidad(1, 1, false, true));

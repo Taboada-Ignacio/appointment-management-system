@@ -20,7 +20,6 @@ public class CrearTurnoManualRequestDto {
 
     private LocalDate fecha;
 
-    @NotNull(message = "El ID del tipo de atención es obligatorio")
     @JsonAlias({"idTipoAtencion", "tipoAtencionId"})
     @JsonProperty("tipoAtencionId")
     private Long tipoAtencionId;

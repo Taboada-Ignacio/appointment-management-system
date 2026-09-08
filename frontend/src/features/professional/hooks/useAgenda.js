@@ -13,7 +13,8 @@ import {
   repeatMonth,
   listSelectableDays,
   getDay,
-  configureDay
+  configureDay,
+  listAssignedAppointments
 } from '../api/agendaApi';
 import { professionalContext } from '../../../config/professional';
 import { validateGaps } from '../../../utils/gaps';
@@ -26,6 +27,7 @@ export const agendaKeys = {
   monthDetail: (mesAgendaId) => [...agendaKeys.all(), 'month', mesAgendaId],
   selectableDays: (desde, hasta) => [...agendaKeys.all(), 'selectableDays', desde, hasta],
   dayDetail: (diaAgendaId) => [...agendaKeys.all(), 'day', diaAgendaId],
+  assignedAppointments: (desde, hasta) => [...agendaKeys.all(), 'assignedAppointments', desde, hasta],
 };
 
 export function useAnnualAgendas() {
@@ -64,6 +66,14 @@ export function useDayDetail(diaAgendaId) {
     queryKey: agendaKeys.dayDetail(diaAgendaId),
     queryFn: () => getDay(diaAgendaId),
     enabled: Boolean(diaAgendaId),
+  });
+}
+
+export function useAssignedAppointments(desde, hasta) {
+  return useQuery({
+    queryKey: agendaKeys.assignedAppointments(desde, hasta),
+    queryFn: () => listAssignedAppointments(desde, hasta),
+    enabled: Boolean(desde && hasta),
   });
 }
 

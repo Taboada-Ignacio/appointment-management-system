@@ -19,7 +19,7 @@ import { getTodayInTimezone, isPast, formatDateLong, addDays, parseDateString } 
 import { validateGaps } from '../../../utils/gaps';
 import { deriveTemporalStatus } from '../../../utils/status';
 import { professionalContext } from '../../../config/professional';
-import { Calendar, ChevronLeft, ChevronRight, Save, X, CalendarClock } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Save, X, CalendarClock, CalendarPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -149,7 +149,7 @@ export function MyDayPage() {
         description={formatDateLong(dateStr, timezone)}
         status={<StatusBadge status={temporalStatus} />}
         actions={
-          <div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-xs">
+          <div className="flex items-center gap-2"><Button type="button" onClick={() => navigate(`/profesional/turnos/nuevo?fecha=${dateStr}`)}><CalendarPlus/>Nuevo turno</Button><div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-xs">
             <Button
               type="button"
               variant="ghost"
@@ -178,7 +178,7 @@ export function MyDayPage() {
               <span className="hidden sm:inline">Siguiente</span>
               <ChevronRight className="h-4 w-4" />
             </Button>
-          </div>
+          </div></div>
         }
       />
 

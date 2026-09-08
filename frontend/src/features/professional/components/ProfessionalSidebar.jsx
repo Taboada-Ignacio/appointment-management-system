@@ -37,6 +37,7 @@ import { professionalContext } from '@/config/professional';
 import { cn } from '@/lib/utils';
 
 const navigation = [
+  { to: '/profesional/turnos/nuevo', label: 'Nuevo turno', icon: UserRound },
   { to: '/profesional/mi-dia', label: 'Mi día', icon: Clock3 },
   { to: '/profesional/mi-mes', label: 'Mi mes', icon: CalendarDays },
   { to: '/profesional/mi-anio', label: 'Mi año', icon: CalendarRange },

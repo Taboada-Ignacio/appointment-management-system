@@ -176,7 +176,7 @@ class CrearTurnoManualIntegrationTest {
                 .containsExactly(AdvertenciaTurnoManual.HORARIO_FUERA_DE_BRECHA);
         assertThat(turnoRepository.count()).isZero();
 
-        ResultadoCrearTurnoManual confirmado = crearTurnoManual.ejecutar(solicitud(14, 0, 14, 30, true));
+        ResultadoCrearTurnoManual confirmado = ejecutarConfirmado(solicitud(14, 0, 14, 30, true));
         assertThat(confirmado.creado()).isTrue();
         assertThat(turnoRepository.count()).isEqualTo(1);
     }
@@ -189,14 +189,14 @@ class CrearTurnoManualIntegrationTest {
         assertThat(previo.advertencias()).containsExactly(AdvertenciaTurnoManual.CAPACIDAD_SUPERADA);
         assertThat(turnoRepository.count()).isEqualTo(1);
 
-        ResultadoCrearTurnoManual confirmado = crearTurnoManual.ejecutar(solicitud(9, 0, 9, 30, true));
+        ResultadoCrearTurnoManual confirmado = ejecutarConfirmado(solicitud(9, 0, 9, 30, true));
         assertThat(confirmado.creado()).isTrue();
         assertThat(turnoRepository.count()).isEqualTo(2);
     }
 
     @Test
     void devuelveFueraDeBrechaYSobrecapacidadSimultaneamente() {
-        crearTurnoManual.ejecutar(solicitud(14, 0, 14, 30, true));
+        ejecutarConfirmado(solicitud(14, 0, 14, 30, true));
 
         ResultadoCrearTurnoManual previo = crearTurnoManual.ejecutar(solicitud(14, 0, 14, 30, false));
 
@@ -246,5 +246,13 @@ class CrearTurnoManualIntegrationTest {
                 confirmar,
                 "Creación manual",
                 "profesional@test");
+    }
+
+    private ResultadoCrearTurnoManual ejecutarConfirmado(SolicitudCrearTurnoManual solicitud) {
+        ResultadoCrearTurnoManual previo = crearTurnoManual.ejecutar(new SolicitudCrearTurnoManual(
+                solicitud.profesionalId(), solicitud.diaAgendaId(), solicitud.clienteId(),
+                solicitud.tipoAtencionId(), solicitud.inicioEstimado(), solicitud.finEstimado(),
+                false, solicitud.observaciones(), solicitud.usuario()));
+        return crearTurnoManual.ejecutar(solicitud, previo.tokenConfirmacion());
     }
 }

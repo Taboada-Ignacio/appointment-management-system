@@ -15,10 +15,10 @@ import { isMonthConfigured } from '../../../utils/status';
 import { professionalContext } from '../../../config/professional';
 import { AlertTriangle, CheckCircle2, LoaderCircle, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MonthWheelPicker } from '@/components/ui/MonthWheelPicker';
 
 export function MyWeekPage() {
-  const { year: currentYear } = getCurrentYearMonth(professionalContext.timezone);
+  const { year: currentYear, month: initialMonth } = getCurrentYearMonth(professionalContext.timezone);
   const { data: agendas } = useAnnualAgendas();
   const currentAgenda = agendas?.find((a) => Number(a.anio) === currentYear);
 
@@ -26,9 +26,10 @@ export function MyWeekPage() {
   const configureMonthWeekly = useConfigureMonthWeekly();
   const { success, error: showError } = useToast();
 
-  const [selectedMonthId, setSelectedMonthId] = useState('');
+  const [selectedMonthNumber, setSelectedMonthNumber] = useState(initialMonth);
 
-  const selectedMonth = months?.find((m) => String(m.id) === String(selectedMonthId));
+  const selectedMonth = months?.find((m) => Number(m.nroMes ?? m.mes) === selectedMonthNumber);
+  const selectedMonthId = selectedMonth?.id ?? '';
   const {
     data: selectedMonthDetail,
     isLoading: isLoadingSelectedMonth,
@@ -82,7 +83,6 @@ export function MyWeekPage() {
         'Plantilla aplicada con éxito',
         `Se configuró la disponibilidad semanal para ${MONTH_NAMES[monthNum - 1]} ${currentYear}.`
       );
-      setSelectedMonthId('');
     } catch (err) {
       showError('Error al aplicar plantilla', err.message);
     }
@@ -116,20 +116,12 @@ export function MyWeekPage() {
         <CardContent className="space-y-4 pt-0">
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
           <div className="w-full max-w-sm flex-1">
-            <Select value={selectedMonthId} onValueChange={setSelectedMonthId}>
-              <SelectTrigger id="target-month-select" className="w-full" aria-label="Seleccionar mes de destino">
-                <SelectValue placeholder={`Seleccioná un mes de destino (${currentYear})`} />
-              </SelectTrigger>
-              <SelectContent>
-              {months?.map((m) => {
-                const monthNum = Number(m.nroMes ?? m.mes ?? 1);
-                const name = MONTH_NAMES[monthNum - 1];
-                return (
-                  <SelectItem key={m.id} value={String(m.id)}>{name}</SelectItem>
-                );
-              })}
-              </SelectContent>
-            </Select>
+            <MonthWheelPicker
+              aria-label="Seleccionar mes de destino"
+              value={selectedMonthNumber}
+              disabled={!months?.length}
+              onChange={setSelectedMonthNumber}
+            />
           </div>
 
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">

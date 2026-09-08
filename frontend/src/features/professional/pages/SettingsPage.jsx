@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -12,6 +12,9 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
@@ -42,12 +45,23 @@ import {
   useMonthDetail,
   useMonths,
 } from '../hooks/useAgenda';
-import { useProfessionalConfig } from '../hooks/useProfessionalConfig';
+import { useProfessionalConfig, useUpdateProfessionalConfig } from '../hooks/useProfessionalConfig';
 
 export function SettingsPage() {
   const navigate = useNavigate();
   const { success, error: showError } = useToast();
   const { data: config } = useProfessionalConfig(professionalContext.id);
+  const updateConfig = useUpdateProfessionalConfig();
+  const [configDraft, setConfigDraft] = useState(null);
+
+  useEffect(() => {
+    if (config) setConfigDraft({
+      cantidadMaxTurnosALaVez: config.cantidadMaxTurnosALaVez,
+      duracionAproximadaPorTurno: config.duracionAproximadaPorTurno,
+      agendaSoloManejadaPorProfesional: config.agendaSoloManejadaPorProfesional,
+      umbralCancelacionHoras: config.umbralCancelacionHoras,
+    });
+  }, [config]);
   const { year: currentYear } = getCurrentYearMonth(professionalContext.timezone);
   const { data: agendas, isLoading: isLoadingAgendas } = useAnnualAgendas();
   const hasCurrentYearAgenda = agendas?.some((agenda) => agenda.anio === currentYear);
@@ -96,6 +110,21 @@ export function SettingsPage() {
     success('Tutorial reabierto', 'El asistente de configuración está visible en la parte superior.');
   };
 
+  const handleUpdateConfig = async (event) => {
+    event.preventDefault();
+    try {
+      await updateConfig.mutateAsync({
+        ...configDraft,
+        cantidadMaxTurnosALaVez: Number(configDraft.cantidadMaxTurnosALaVez),
+        duracionAproximadaPorTurno: Number(configDraft.duracionAproximadaPorTurno),
+        umbralCancelacionHoras: Number(configDraft.umbralCancelacionHoras),
+      });
+      success('Configuración actualizada', 'Los cambios se aplicarán al cálculo de los próximos turnos.');
+    } catch (error) {
+      showError('Error al modificar configuración', error.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -103,6 +132,22 @@ export function SettingsPage() {
         title="Configuración"
         description="Gestioná agendas anuales, estados mensuales, horarios habituales y el contexto profesional."
       />
+
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>Modificar configuración</CardTitle>
+          <CardDescription>Definí la duración, capacidad simultánea y reglas generales para los turnos.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {configDraft ? <form className="grid gap-4 md:grid-cols-2" onSubmit={handleUpdateConfig}>
+            <div className="space-y-2"><Label htmlFor="config-duration">Duración aproximada por turno (minutos)</Label><Input id="config-duration" type="number" min="1" required value={configDraft.duracionAproximadaPorTurno} onChange={(event) => setConfigDraft((draft) => ({ ...draft, duracionAproximadaPorTurno: event.target.value }))} /></div>
+            <div className="space-y-2"><Label htmlFor="config-capacity">Cantidad máxima de turnos simultáneos</Label><Input id="config-capacity" type="number" min="1" required value={configDraft.cantidadMaxTurnosALaVez} onChange={(event) => setConfigDraft((draft) => ({ ...draft, cantidadMaxTurnosALaVez: event.target.value }))} /></div>
+            <div className="space-y-2"><Label htmlFor="config-threshold">Umbral de cancelación (horas)</Label><Input id="config-threshold" type="number" min="0" required value={configDraft.umbralCancelacionHoras} onChange={(event) => setConfigDraft((draft) => ({ ...draft, umbralCancelacionHoras: event.target.value }))} /></div>
+            <div className="flex items-center justify-between gap-4 rounded-xl border p-4"><Label htmlFor="config-professional-only" className="cursor-pointer">Agenda administrada solo por el profesional</Label><Switch id="config-professional-only" checked={Boolean(configDraft.agendaSoloManejadaPorProfesional)} onCheckedChange={(checked) => setConfigDraft((draft) => ({ ...draft, agendaSoloManejadaPorProfesional: checked }))} /></div>
+            <div className="md:col-span-2"><Button type="submit" disabled={updateConfig.isPending}>{updateConfig.isPending ? 'Guardando...' : 'Guardar configuración'}</Button></div>
+          </form> : <p className="text-sm text-muted-foreground">No hay una configuración registrada para modificar.</p>}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(20rem,0.65fr)]">
         <div className="space-y-6">

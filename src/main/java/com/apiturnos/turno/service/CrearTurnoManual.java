@@ -74,7 +74,10 @@ public class CrearTurnoManual {
         ValidadorCrearTurnoManual.ContextoValidado contexto = validador.validar(solicitud);
 
         if (!contexto.advertencias().isEmpty() && tokenConfirmacion != null) {
-            if ((token == null || token.isBlank()) && !solicitud.confirmarAdvertencias()) {
+            // En produccion la confirmacion siempre queda vinculada a la
+            // prevalidacion. El booleano se conserva en el contrato por
+            // compatibilidad, pero ya no autoriza advertencias por si solo.
+            if (token == null || token.isBlank()) {
                 String emitido = tokenConfirmacion.emitir(solicitud, contexto.advertencias(),
                         contexto.capacidadMaxima(), contexto.turnosConcurrentes());
                 return ResultadoCrearTurnoManual.requiereConfirmacion(
@@ -99,7 +102,7 @@ public class CrearTurnoManual {
         Turno turno = new Turno();
         turno.setDiaAgenda(contexto.diaAgenda());
         turno.setCliente(contexto.cliente());
-        turno.setTipoAtencion(contexto.tipoAtencion());
+        turno.setTipoAtencion(contexto.tipoAtencion().getId() == null ? null : contexto.tipoAtencion());
         turno.setInicioEstimado(solicitud.inicioEstimado());
         turno.setFinEstimado(solicitud.finEstimado());
         turno.setOrigen(OrigenTurno.PROFESIONAL);

@@ -6,12 +6,14 @@ import com.apiturnos.agenda.model.ExcepcionAgenda;
 import com.apiturnos.agenda.model.TipoExcepcion;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.agenda.repository.ExcepcionAgendaRepository;
+import com.apiturnos.agenda.repository.BrechaHorariaRepository;
 import com.apiturnos.estado.model.AmbitoEstado;
 import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.profesional.repository.ProfesionalRepository;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import com.apiturnos.shared.exception.NegocioException;
 import com.apiturnos.turno.service.EvaluadorDisponibilidadTurnoManual;
+import com.apiturnos.turno.repository.TurnoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,8 @@ class ObtenerDiasSeleccionablesUnitTest {
     @Mock private GestorCambioEstado gestorCambioEstado;
     @Mock private EvaluadorDisponibilidadTurnoManual evaluadorDisponibilidad;
     @Mock private ProfesionalRepository profesionalRepository;
+    @Mock private BrechaHorariaRepository brechaHorariaRepository;
+    @Mock private TurnoRepository turnoRepository;
 
     private ObtenerDiasSeleccionables servicio;
 
@@ -57,12 +61,16 @@ class ObtenerDiasSeleccionablesUnitTest {
                 gestorCambioEstado,
                 evaluadorDisponibilidad,
                 profesionalRepository,
+                brechaHorariaRepository,
+                turnoRepository,
                 clock);
 
         lenient().when(profesionalRepository.existsById(PROFESIONAL_ID)).thenReturn(true);
         lenient().when(excepcionAgendaRepository.findActivasAplicablesAFecha(eq(PROFESIONAL_ID), any()))
                 .thenReturn(List.of());
         lenient().when(evaluadorDisponibilidad.hayCierreCompleto(anyCollection())).thenReturn(false);
+        lenient().when(brechaHorariaRepository.findByDiaAgendaIdInOrderByDiaAgendaIdAscHoraInicioAtencionAsc(any())).thenReturn(List.of());
+        lenient().when(turnoRepository.findByDiaAgendaIdIn(any())).thenReturn(List.of());
     }
 
     @Test

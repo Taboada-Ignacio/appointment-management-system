@@ -10,18 +10,28 @@ public class DiaSeleccionableResponseDto {
     private String nombreDiaSemana;
     private boolean seleccionable;
     private String mensaje;
+    private int cantidadBrechas;
+    private int cantidadTurnosAsignados;
 
     public DiaSeleccionableResponseDto() {
     }
 
     public DiaSeleccionableResponseDto(Long diaAgendaId, LocalDate fecha, String estado,
                                        String nombreDiaSemana, boolean seleccionable, String mensaje) {
+        this(diaAgendaId, fecha, estado, nombreDiaSemana, seleccionable, mensaje, 0, 0);
+    }
+
+    public DiaSeleccionableResponseDto(Long diaAgendaId, LocalDate fecha, String estado,
+                                       String nombreDiaSemana, boolean seleccionable, String mensaje,
+                                       int cantidadBrechas, int cantidadTurnosAsignados) {
         this.diaAgendaId = diaAgendaId;
         this.fecha = fecha;
         this.estado = estado;
         this.nombreDiaSemana = nombreDiaSemana;
         this.seleccionable = seleccionable;
         this.mensaje = mensaje;
+        this.cantidadBrechas = cantidadBrechas;
+        this.cantidadTurnosAsignados = cantidadTurnosAsignados;
     }
 
     public Long getDiaAgendaId() {
@@ -71,5 +81,13 @@ public class DiaSeleccionableResponseDto {
     public void setMensaje(String mensaje) {
         this.mensaje = mensaje;
     }
+
+    public int getCantidadBrechas() { return cantidadBrechas; }
+
+    public void setCantidadBrechas(int cantidadBrechas) { this.cantidadBrechas = cantidadBrechas; }
+
+    public int getCantidadTurnosAsignados() { return cantidadTurnosAsignados; }
+
+    public void setCantidadTurnosAsignados(int cantidadTurnosAsignados) { this.cantidadTurnosAsignados = cantidadTurnosAsignados; }
 }
 

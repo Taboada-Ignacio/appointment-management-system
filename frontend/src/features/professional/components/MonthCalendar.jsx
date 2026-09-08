@@ -23,6 +23,7 @@ export function MonthCalendar({
   days = [],
   selectedDayId = null,
   onSelectDay = null,
+  onDoubleClickDay = null,
   loading = false,
 }) {
   const numDays = getDaysInMonth(year, month);
@@ -220,7 +221,7 @@ export function MonthCalendar({
                 : null;
               const accessibleStatus = status ? ` Estado: ${status.toLowerCase().replace('_', ' ')}.` : ' Sin datos de agenda.';
               const accessibleSummary = cell.data
-                ? ` ${gapCount} brechas horarias. ${appointmentCount} turnos asignados.${exceptionTypes.length ? ` Excepciones: ${exceptionTypes.map((type) => EXCEPTION_LABELS[type] || type).join(', ')}.` : ''}`
+                ? ` ${gapCount} brechas horarias. ${appointmentCount} turnos activos.${exceptionTypes.length ? ` Excepciones: ${exceptionTypes.map((type) => EXCEPTION_LABELS[type] || type).join(', ')}.` : ''}`
                 : '';
 
               let dayThemeClasses;
@@ -259,6 +260,7 @@ export function MonthCalendar({
                   onKeyDown={(e) => handleKeyDown(e, cell)}
                   onFocus={() => setFocusState({ scope: focusScope, date: cell.dateStr })}
                   onClick={() => onSelectDay?.(cell.data || { id: cell.id, fecha: cell.dateStr, empty: true })}
+                  onDoubleClick={() => onDoubleClickDay?.(cell.data || { id: cell.id, fecha: cell.dateStr, empty: true })}
                   aria-selected={isSelected}
                   aria-label={`${cell.dayNumber} de ${MONTH_NAMES[month - 1]} de ${year}.${accessibleStatus}${accessibleSummary}`}
                   data-status={status}
@@ -330,7 +332,7 @@ export function MonthCalendar({
                     {cell.data && (
                       <div className="space-y-0.5 text-[9px] font-semibold text-foreground/75 sm:text-[10px]">
                         <span className="block">{gapCount} {gapCount === 1 ? 'brecha' : 'brechas'}</span>
-                        <span className="block">{appointmentCount} {appointmentCount === 1 ? 'turno' : 'turnos'}</span>
+                        <span className="block">{appointmentCount} {appointmentCount === 1 ? 'turno activo' : 'turnos activos'}</span>
                       </div>
                     )}
                     {visibleExceptionTypes.length > 0 && (

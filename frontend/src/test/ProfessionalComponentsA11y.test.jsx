@@ -94,7 +94,7 @@ describe('Professional component accessibility and contract honesty', () => {
 
     expect(screen.getAllByText('Inactivo')).toHaveLength(1);
     expect(screen.getAllByText('2 brechas')).toHaveLength(1);
-    expect(screen.getAllByText('3 turnos')).toHaveLength(1);
+    expect(screen.getAllByText('3 turnos activos')).toHaveLength(1);
     expect(screen.getByText('Vacaciones')).toBeInTheDocument();
 
     const day15 = screen.getByRole('gridcell', { name: /15 de Febrero de 2027/i });

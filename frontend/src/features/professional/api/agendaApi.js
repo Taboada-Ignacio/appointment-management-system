@@ -42,6 +42,11 @@ export function getMonth(monthAgendaId) {
   return api.get(monthPath(monthAgendaId));
 }
 
+export function listAssignedAppointments(desde, hasta) {
+  const params = new URLSearchParams({ desde, hasta });
+  return api.get(`${professionalPath}/turnos?${params}`);
+}
+
 export function generateMonthDays(monthAgendaId) {
   return api.post(`${monthPath(monthAgendaId)}/dias`);
 }

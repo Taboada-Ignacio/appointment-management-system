@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isToday, formatDateLong } from '../../../utils/dates';
 import { formatTimeRange, timeToMinutes, subtractGaps } from '../../../utils/gaps';
 import { deriveTemporalStatus } from '../../../utils/status';
@@ -7,7 +7,7 @@ import { AvailabilitySignal } from '../../../components/ui/AvailabilitySignal';
 import { IntegrationNotice } from '../../../components/ui/IntegrationNotice';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { professionalContext } from '../../../config/professional';
-import { CalendarClock, Edit3 } from 'lucide-react';
+import { CalendarClock, Edit3, Maximize, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -24,13 +24,40 @@ function currentMinutesInTimezone(timezone) {
   return hour * 60 + minute;
 }
 
+const ZOOM_LEVELS = [50, 75, 100, 125, 150, 200, 250, 300];
+const nextZoom = (zoom, direction) => {
+  const currentIndex = ZOOM_LEVELS.findIndex((level) => level >= zoom);
+  const nextIndex = direction > 0
+    ? Math.min(ZOOM_LEVELS.length - 1, currentIndex + 1)
+    : Math.max(0, (currentIndex < 0 ? ZOOM_LEVELS.length : currentIndex) - 1);
+  return ZOOM_LEVELS[nextIndex];
+};
+
+function instantTime(value, timezone) {
+  if (!value) return '';
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(value));
+}
+
 export function DailyTimeline({
   day = null,
   timezone = professionalContext.timezone,
   onEditGaps = null,
   canEdit = false,
+  showIntegrationNotice = true,
+  candidateSlots = [],
+  selectedCandidate = null,
+  onSelectCandidate = null,
+  zoom = 100,
+  onZoomChange = null,
+  appointments = [],
 }) {
   const [currentTimeMinutes, setCurrentTimeMinutes] = useState(() => currentMinutesInTimezone(timezone));
+  const timelineRef = useRef(null);
 
   const isTodayDay = Boolean(day?.fecha && isToday(day.fecha, timezone));
 
@@ -43,6 +70,18 @@ export function DailyTimeline({
 
     return () => clearInterval(interval);
   }, [isTodayDay, timezone]);
+
+  useEffect(() => {
+    const timeline = timelineRef.current;
+    if (!timeline || !onZoomChange) return undefined;
+    const handleWheel = (event) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      onZoomChange(nextZoom(zoom, event.deltaY < 0 ? 1 : -1));
+    };
+    timeline.addEventListener('wheel', handleWheel, { passive: false });
+    return () => timeline.removeEventListener('wheel', handleWheel);
+  }, [onZoomChange, zoom]);
 
   if (!day) {
     return (
@@ -93,7 +132,12 @@ export function DailyTimeline({
   let startHour = 8;
   let endHour = 18;
 
-  const intervalosVisibles = [...todasBrechas, ...bloqueosHorario, ...habilitaciones];
+  const appointmentSlots = appointments.map((appointment) => ({
+    ...appointment,
+    horaInicio: instantTime(appointment.inicioEstimado, timezone),
+    horaFin: instantTime(appointment.finEstimado, timezone),
+  })).filter((appointment) => appointment.horaInicio && appointment.horaFin);
+  const intervalosVisibles = [...todasBrechas, ...bloqueosHorario, ...habilitaciones, ...candidateSlots, ...appointmentSlots];
   if (intervalosVisibles.length > 0) {
     const startMinutesList = intervalosVisibles.map((b) => timeToMinutes(b.horaInicio));
     const endMinutesList = intervalosVisibles.map((b) => timeToMinutes(b.horaFin));
@@ -114,7 +158,10 @@ export function DailyTimeline({
   const totalMinutes = (endHour - startHour) * 60;
   const displayStartHour = `${String(startHour).padStart(2, '0')}:00`;
   const displayEndHour = `${String(endHour).padStart(2, '0')}:00`;
-  const timelineHeight = Math.max(440, (endHour - startHour) * 55);
+  const timelineHeight = Math.max(440, (endHour - startHour) * 55) * (zoom / 100);
+  const changeZoom = (direction) => {
+    onZoomChange?.(nextZoom(zoom, direction));
+  };
 
   const renderHourLines = () => {
     const lines = [];
@@ -218,6 +265,59 @@ export function DailyTimeline({
     );
   });
 
+  const renderCandidates = () => candidateSlots.map((slot, idx) => {
+    const startMin = timeToMinutes(slot.horaInicio);
+    const endMin = timeToMinutes(slot.horaFin);
+    const adjustedStart = Math.max(startHour * 60, startMin);
+    const adjustedEnd = Math.min(endHour * 60, endMin);
+    if (adjustedEnd <= startHour * 60 || adjustedStart >= endHour * 60) return null;
+    const selected = selectedCandidate?.horaInicio === slot.horaInicio
+      && selectedCandidate?.horaFin === slot.horaFin;
+    const warnings = slot.advertencias || [];
+    const warningText = warnings.map((warning) => {
+      if (warning === 'HORARIO_FUERA_DE_BRECHA') return 'El horario está fuera de las franjas horarias configuradas.';
+      if (warning === 'CAPACIDAD_SUPERADA') return 'Se superará la capacidad simultánea.';
+      return warning;
+    }).join(' ');
+    const label = `${formatTimeRange(slot.horaInicio, slot.horaFin)}. Ocupación ${slot.turnosConcurrentes}/${slot.capacidadSimultanea}.${warningText ? ` ${warningText}` : ''}`;
+    return (
+      <button
+        type="button"
+        key={`candidate-${slot.horaInicio}-${slot.horaFin}-${idx}`}
+        aria-label={label}
+        aria-pressed={selected}
+        onClick={() => onSelectCandidate?.(slot)}
+        className={`absolute left-16 right-3 z-20 flex flex-col items-start justify-center overflow-hidden rounded-md border px-2 text-left text-[10px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? 'border-primary bg-primary text-primary-foreground' : warnings.length ? 'border-amber-500 bg-amber-100 text-amber-950 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-100' : 'border-primary/50 bg-background/95 text-foreground hover:bg-accent'}`}
+        style={{ top: `${((adjustedStart - startHour * 60) / totalMinutes) * 100}%`, height: `${((adjustedEnd - adjustedStart) / totalMinutes) * 100}%`, minHeight: '30px' }}
+      >
+        <span>{formatTimeRange(slot.horaInicio, slot.horaFin)}</span>
+        <span className="font-normal">Ocupación {slot.turnosConcurrentes}/{slot.capacidadSimultanea}</span>
+      </button>
+    );
+  });
+
+  const renderAppointments = () => appointmentSlots.map((appointment, idx) => {
+    const startMin = timeToMinutes(appointment.horaInicio);
+    const endMin = timeToMinutes(appointment.horaFin);
+    const adjustedStart = Math.max(startHour * 60, startMin);
+    const adjustedEnd = Math.min(endHour * 60, endMin);
+    if (adjustedEnd <= startHour * 60 || adjustedStart >= endHour * 60) return null;
+    const patient = appointment.cliente
+      ? `${appointment.cliente.nombre || ''} ${appointment.cliente.apellido || ''}`.trim()
+      : 'Cliente';
+    return (
+      <div
+        key={`appointment-${appointment.id ?? idx}`}
+        className="absolute left-16 right-3 z-15 flex flex-col justify-center overflow-hidden rounded-md border border-sky-600 bg-sky-100 px-2 text-[10px] font-semibold text-sky-950 shadow-sm dark:bg-sky-950 dark:text-sky-100"
+        style={{ top: `${((adjustedStart - startHour * 60) / totalMinutes) * 100}%`, height: `${((adjustedEnd - adjustedStart) / totalMinutes) * 100}%`, minHeight: '30px' }}
+        aria-label={`Turno asignado de ${patient}, ${formatTimeRange(appointment.horaInicio, appointment.horaFin)}`}
+      >
+        <span>{formatTimeRange(appointment.horaInicio, appointment.horaFin)}</span>
+        <span className="truncate font-normal">{patient} · Asignado</span>
+      </div>
+    );
+  });
+
   return (
     <Card className="shadow-none">
       <CardContent className="flex flex-col gap-5 p-5 sm:p-6">
@@ -251,9 +351,9 @@ export function DailyTimeline({
         </div>
       )}
 
-      <IntegrationNotice title="Consulta de turnos no disponible">
+      {showIntegrationNotice && <IntegrationNotice title="Consulta de turnos no disponible">
         El backend no expone un endpoint para listar los turnos asignados a este día. La visualización se limita a las brechas horarias de atención configuradas.
-      </IntegrationNotice>
+      </IntegrationNotice>}
 
       <section aria-labelledby="daily-availability-title" className="rounded-xl border bg-muted/25 p-4">
         <div className="mb-2 flex items-center justify-between gap-3">
@@ -272,6 +372,13 @@ export function DailyTimeline({
           dayEnd={displayEndHour}
           variant="detailed"
         />
+        {onZoomChange && (
+          <div className="mt-3 flex items-center justify-end gap-1" aria-label={`Zoom del cronograma: ${zoom}%`}>
+            <Button type="button" variant="outline" size="icon" aria-label="Reducir zoom" title="Reducir zoom" disabled={zoom <= 50} onClick={() => changeZoom(-1)}><Minus /></Button>
+            <Button type="button" variant="outline" size="icon" aria-label="Restablecer zoom" title="Restablecer zoom" disabled={zoom === 100} onClick={() => onZoomChange(100)}><Maximize /></Button>
+            <Button type="button" variant="outline" size="icon" aria-label="Aumentar zoom" title="Aumentar zoom" disabled={zoom >= 300} onClick={() => changeZoom(1)}><Plus /></Button>
+          </div>
+        )}
         {(bloqueosHorario.length > 0 || habilitaciones.length > 0) && (
           <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
@@ -334,12 +441,16 @@ export function DailyTimeline({
           </div>
         ) : (
           <div
+            data-testid="daily-timeline-grid"
+            ref={timelineRef}
             className="relative min-h-[440px] rounded-xl bg-card"
             style={{ height: `${timelineHeight}px` }}
           >
             {renderHourLines()}
             {renderGaps()}
             {renderBlockedGaps()}
+            {renderAppointments()}
+            {renderCandidates()}
 
             {isTodayDay &&
               currentTimeMinutes >= startHour * 60 &&

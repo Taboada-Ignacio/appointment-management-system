@@ -447,6 +447,7 @@ class TurnoManualApiIntegrationTest {
                 true, // Confirmado explícitamente
                 "Turno fuera de brecha confirmado");
 
+        request.setTokenConfirmacion(validarYObtenerToken(request));
         mockMvc.perform(post("/api/profesionales/{profesionalId}/turnos", prof1.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -524,6 +525,7 @@ class TurnoManualApiIntegrationTest {
                 true, // Confirmado
                 "Turno 2 sobrecapacidad confirmado");
 
+        request2.setTokenConfirmacion(validarYObtenerToken(request2));
         mockMvc.perform(post("/api/profesionales/{profesionalId}/turnos", prof1.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request2)))
@@ -546,6 +548,7 @@ class TurnoManualApiIntegrationTest {
                 FECHA.atTime(14, 30).toInstant(ZoneOffset.UTC),
                 true,
                 "Primer turno 14:00");
+        primerFueraBrecha.setTokenConfirmacion(validarYObtenerToken(primerFueraBrecha));
         mockMvc.perform(post("/api/profesionales/{profesionalId}/turnos", prof1.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(primerFueraBrecha)))
@@ -758,7 +761,6 @@ class TurnoManualApiIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.fieldErrors.clienteId").isNotEmpty())
-                .andExpect(jsonPath("$.fieldErrors.tipoAtencionId").isNotEmpty())
                 .andExpect(jsonPath("$.fieldErrors.inicioEstimado").isNotEmpty())
                 .andExpect(jsonPath("$.fieldErrors.finEstimado").isNotEmpty());
     }
@@ -788,6 +790,14 @@ class TurnoManualApiIntegrationTest {
                 .andExpect(jsonPath("$.turnoId").value(nullValue()));
 
         assertThat(turnoRepository.count()).isZero();
+    }
+    private String validarYObtenerToken(CrearTurnoManualRequestDto request) throws Exception {
+        String json = mockMvc.perform(post("/api/profesionales/{profesionalId}/turnos/validar", prof1.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(json).path("tokenConfirmacion").asText();
     }
 }
 

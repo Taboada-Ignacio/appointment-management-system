@@ -19,6 +19,9 @@ import com.apiturnos.shared.exception.DiaAgendaNoValidoException;
 import com.apiturnos.shared.exception.TipoAtencionNoPerteneceProfesionalException;
 import com.apiturnos.turno.model.AdvertenciaTurnoManual;
 import com.apiturnos.turno.model.MotivoRechazoTurnoManual;
+import com.apiturnos.profesional.model.Configuracion;
+import com.apiturnos.profesional.repository.ConfiguracionRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -45,6 +48,7 @@ public class ValidadorCrearTurnoManual {
     private final EvaluadorDisponibilidadTurnoManual evaluadorDisponibilidad;
     private final VerificarCapacidadTipoAtencion verificadorCapacidad;
     private final Clock clock;
+    private final ConfiguracionRepository configuracionRepository;
 
     public ValidadorCrearTurnoManual(
             DiaAgendaRepository diaAgendaRepository,
@@ -56,6 +60,19 @@ public class ValidadorCrearTurnoManual {
             EvaluadorDisponibilidadTurnoManual evaluadorDisponibilidad,
             VerificarCapacidadTipoAtencion verificadorCapacidad,
             Clock clock) {
+        this(diaAgendaRepository, clienteRepository, tipoAtencionRepository, brechaHorariaRepository,
+                excepcionAgendaRepository, gestorCambioEstado, evaluadorDisponibilidad,
+                verificadorCapacidad, clock, null);
+    }
+
+    @Autowired
+    public ValidadorCrearTurnoManual(
+            DiaAgendaRepository diaAgendaRepository, ClienteRepository clienteRepository,
+            TipoAtencionRepository tipoAtencionRepository, BrechaHorariaRepository brechaHorariaRepository,
+            ExcepcionAgendaRepository excepcionAgendaRepository, GestorCambioEstado gestorCambioEstado,
+            EvaluadorDisponibilidadTurnoManual evaluadorDisponibilidad,
+            VerificarCapacidadTipoAtencion verificadorCapacidad, Clock clock,
+            ConfiguracionRepository configuracionRepository) {
         this.diaAgendaRepository = diaAgendaRepository;
         this.clienteRepository = clienteRepository;
         this.tipoAtencionRepository = tipoAtencionRepository;
@@ -65,6 +82,7 @@ public class ValidadorCrearTurnoManual {
         this.evaluadorDisponibilidad = evaluadorDisponibilidad;
         this.verificadorCapacidad = verificadorCapacidad;
         this.clock = clock;
+        this.configuracionRepository = configuracionRepository;
     }
 
     public ContextoValidado validar(SolicitudCrearTurnoManual solicitud) {
@@ -80,10 +98,22 @@ public class ValidadorCrearTurnoManual {
                 .orElseThrow(() -> new ClienteNoPerteneceProfesionalException(
                         solicitud.clienteId(), solicitud.profesionalId()));
 
-        TipoAtencion tipoAtencion = tipoAtencionRepository
-                .findByIdAndProfesionalId(solicitud.tipoAtencionId(), solicitud.profesionalId())
-                .orElseThrow(() -> new TipoAtencionNoPerteneceProfesionalException(
-                        solicitud.tipoAtencionId(), solicitud.profesionalId()));
+        Configuracion configuracion = null;
+        TipoAtencion tipoAtencion;
+        if (solicitud.tipoAtencionId() != null) {
+            tipoAtencion = tipoAtencionRepository
+                    .findByIdAndProfesionalId(solicitud.tipoAtencionId(), solicitud.profesionalId())
+                    .orElseThrow(() -> new TipoAtencionNoPerteneceProfesionalException(
+                            solicitud.tipoAtencionId(), solicitud.profesionalId()));
+        } else {
+            if (configuracionRepository == null) {
+                rechazar(MotivoRechazoTurnoManual.DATOS_INVALIDOS, "La configuración profesional es obligatoria");
+            }
+            configuracion = configuracionRepository.findByProfesionalId(solicitud.profesionalId())
+                    .orElseThrow(() -> new TurnoManualNoPermitidoException(
+                            MotivoRechazoTurnoManual.DATOS_INVALIDOS, "El profesional no tiene configuración"));
+            tipoAtencion = tipoDesdeConfiguracion(configuracion);
+        }
 
         validarCliente(cliente);
         validarTipoAtencion(tipoAtencion);
@@ -109,12 +139,10 @@ public class ValidadorCrearTurnoManual {
             advertencias.add(AdvertenciaTurnoManual.DURACION_DIFERENTE_AL_TIPO_ATENCION);
         }
 
-        VerificarCapacidadTipoAtencion.ResultadoCapacidad capacidad =
-                verificadorCapacidad.evaluar(
-                        tipoAtencion,
-                        solicitud.inicioEstimado(),
-                        solicitud.finEstimado(),
-                        null);
+        VerificarCapacidadTipoAtencion.ResultadoCapacidad capacidad = configuracion == null
+                ? verificadorCapacidad.evaluar(tipoAtencion, solicitud.inicioEstimado(), solicitud.finEstimado(), null)
+                : verificadorCapacidad.evaluarConfiguracion(solicitud.profesionalId(), dia.getFecha(),
+                        configuracion.getCantidadMaxTurnosALaVez(), solicitud.inicioEstimado(), solicitud.finEstimado(), null);
         if (capacidad.sobrecapacidad()) {
             advertencias.add(AdvertenciaTurnoManual.CAPACIDAD_SUPERADA);
         }
@@ -140,7 +168,6 @@ public class ValidadorCrearTurnoManual {
                 || solicitud.profesionalId() == null
                 || solicitud.diaAgendaId() == null
                 || solicitud.clienteId() == null
-                || solicitud.tipoAtencionId() == null
                 || solicitud.inicioEstimado() == null
                 || solicitud.finEstimado() == null
                 || solicitud.usuario() == null
@@ -223,5 +250,14 @@ public class ValidadorCrearTurnoManual {
                     tipoAtencion != null && tipoAtencion.getCapacidadSimultanea() != null
                             ? tipoAtencion.getCapacidadSimultanea() : 1, 0);
         }
+    }
+
+    private TipoAtencion tipoDesdeConfiguracion(Configuracion configuracion) {
+        TipoAtencion tipo = new TipoAtencion();
+        tipo.setNombre("Configuración general");
+        tipo.setDuracionMinutos(configuracion.getDuracionAproximadaPorTurno());
+        tipo.setCapacidadSimultanea(configuracion.getCantidadMaxTurnosALaVez());
+        tipo.setActivo(true);
+        return tipo;
     }
 }

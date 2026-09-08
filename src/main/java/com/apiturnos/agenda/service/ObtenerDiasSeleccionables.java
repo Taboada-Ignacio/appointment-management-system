@@ -5,12 +5,14 @@ import com.apiturnos.agenda.model.DiaAgenda;
 import com.apiturnos.agenda.model.ExcepcionAgenda;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.agenda.repository.ExcepcionAgendaRepository;
+import com.apiturnos.agenda.repository.BrechaHorariaRepository;
 import com.apiturnos.estado.model.AmbitoEstado;
 import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.profesional.repository.ProfesionalRepository;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
 import com.apiturnos.shared.exception.NegocioException;
 import com.apiturnos.turno.service.EvaluadorDisponibilidadTurnoManual;
+import com.apiturnos.turno.repository.TurnoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ObtenerDiasSeleccionables {
@@ -30,6 +34,8 @@ public class ObtenerDiasSeleccionables {
     private final GestorCambioEstado gestorCambioEstado;
     private final EvaluadorDisponibilidadTurnoManual evaluadorDisponibilidad;
     private final ProfesionalRepository profesionalRepository;
+    private final BrechaHorariaRepository brechaHorariaRepository;
+    private final TurnoRepository turnoRepository;
     private final Clock clock;
 
     public ObtenerDiasSeleccionables(
@@ -38,12 +44,16 @@ public class ObtenerDiasSeleccionables {
             GestorCambioEstado gestorCambioEstado,
             EvaluadorDisponibilidadTurnoManual evaluadorDisponibilidad,
             ProfesionalRepository profesionalRepository,
+            BrechaHorariaRepository brechaHorariaRepository,
+            TurnoRepository turnoRepository,
             Clock clock) {
         this.diaAgendaRepository = diaAgendaRepository;
         this.excepcionAgendaRepository = excepcionAgendaRepository;
         this.gestorCambioEstado = gestorCambioEstado;
         this.evaluadorDisponibilidad = evaluadorDisponibilidad;
         this.profesionalRepository = profesionalRepository;
+        this.brechaHorariaRepository = brechaHorariaRepository;
+        this.turnoRepository = turnoRepository;
         this.clock = clock;
     }
 
@@ -67,6 +77,18 @@ public class ObtenerDiasSeleccionables {
 
         List<DiaAgenda> dias = diaAgendaRepository.findByProfesionalIdAndFechaBetween(
                 profesionalId, fechaDesde, fechaHasta);
+        List<Long> diaIds = dias.stream().map(DiaAgenda::getId).toList();
+        Map<Long, Long> brechasPorDia = diaIds.isEmpty() ? Map.of() :
+                brechaHorariaRepository.findByDiaAgendaIdInOrderByDiaAgendaIdAscHoraInicioAtencionAsc(diaIds)
+                        .stream().collect(Collectors.groupingBy(b -> b.getDiaAgenda().getId(), Collectors.counting()));
+        var turnos = diaIds.isEmpty() ? List.<com.apiturnos.turno.model.Turno>of()
+                : turnoRepository.findByDiaAgendaIdIn(diaIds);
+        Map<Long, String> estadosTurnos = turnos.isEmpty() ? Map.of()
+                : gestorCambioEstado.obtenerEstadosActualesPorEntidades(
+                        AmbitoEstado.TURNO, turnos.stream().map(com.apiturnos.turno.model.Turno::getId).toList());
+        Map<Long, Long> turnosActivosPorDia = turnos.stream()
+                .filter(turno -> "ASIGNADO".equals(estadosTurnos.get(turno.getId())))
+                .collect(Collectors.groupingBy(turno -> turno.getDiaAgenda().getId(), Collectors.counting()));
 
         List<DiaSeleccionableResponseDto> resultado = new ArrayList<>();
 
@@ -112,7 +134,9 @@ public class ObtenerDiasSeleccionables {
                     estadoDia,
                     nombreDiaSemana,
                     seleccionable,
-                    mensaje));
+                    mensaje,
+                    brechasPorDia.getOrDefault(dia.getId(), 0L).intValue(),
+                    turnosActivosPorDia.getOrDefault(dia.getId(), 0L).intValue()));
         }
 
         resultado.sort(Comparator.comparing(DiaSeleccionableResponseDto::getFecha));

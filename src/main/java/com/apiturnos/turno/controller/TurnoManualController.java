@@ -4,6 +4,7 @@ import com.apiturnos.agenda.model.DiaAgenda;
 import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.atencion.model.TipoAtencion;
 import com.apiturnos.atencion.repository.TipoAtencionRepository;
+import com.apiturnos.profesional.repository.ConfiguracionRepository;
 import com.apiturnos.shared.exception.DiaAgendaNoValidoException;
 import com.apiturnos.turno.dto.CrearTurnoManualRequestDto;
 import com.apiturnos.turno.dto.CrearTurnoManualResponseDto;
@@ -18,6 +19,7 @@ import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,30 +43,45 @@ public class TurnoManualController {
     private final DiaAgendaRepository diaAgendaRepository;
     private final TipoAtencionRepository tipoAtencionRepository;
     private final Clock clock;
+    private final ConfiguracionRepository configuracionRepository;
 
+    public TurnoManualController(CrearTurnoManual crearTurnoManual,
+            ValidadorCrearTurnoManual validadorCrearTurnoManual,
+            SugerirHorariosTurnoManual sugerirHorariosTurnoManual,
+            DiaAgendaRepository diaAgendaRepository,
+            TipoAtencionRepository tipoAtencionRepository,
+            Clock clock) {
+        this(crearTurnoManual, validadorCrearTurnoManual, sugerirHorariosTurnoManual,
+                diaAgendaRepository, tipoAtencionRepository, null, clock);
+    }
+
+    @Autowired
     public TurnoManualController(
             CrearTurnoManual crearTurnoManual,
             ValidadorCrearTurnoManual validadorCrearTurnoManual,
             SugerirHorariosTurnoManual sugerirHorariosTurnoManual,
             DiaAgendaRepository diaAgendaRepository,
             TipoAtencionRepository tipoAtencionRepository,
+            ConfiguracionRepository configuracionRepository,
             Clock clock) {
         this.crearTurnoManual = crearTurnoManual;
         this.validadorCrearTurnoManual = validadorCrearTurnoManual;
         this.sugerirHorariosTurnoManual = sugerirHorariosTurnoManual;
         this.diaAgendaRepository = diaAgendaRepository;
         this.tipoAtencionRepository = tipoAtencionRepository;
+        this.configuracionRepository = configuracionRepository;
         this.clock = clock;
     }
 
     @GetMapping("/horarios-sugeridos")
     public ResponseEntity<List<HorarioSugeridoResponseDto>> obtenerHorariosSugeridos(
             @PathVariable Long profesionalId,
-            @RequestParam Long tipoAtencionId,
+            @RequestParam(required = false) Long tipoAtencionId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
 
-        List<HorarioSugeridoTurnoManual> sugerencias = sugerirHorariosTurnoManual.ejecutar(
-                profesionalId, tipoAtencionId, fecha);
+        List<HorarioSugeridoTurnoManual> sugerencias = tipoAtencionId == null
+                ? sugerirHorariosTurnoManual.ejecutar(profesionalId, fecha)
+                : sugerirHorariosTurnoManual.ejecutar(profesionalId, tipoAtencionId, fecha);
 
         List<HorarioSugeridoResponseDto> dtos = sugerencias.stream()
                 .map(HorarioSugeridoResponseDto::new)
@@ -124,9 +141,14 @@ public class TurnoManualController {
                 ? crearTurnoManual.ejecutar(solicitud)
                 : crearTurnoManual.ejecutar(solicitud, request.getTokenConfirmacion());
 
-        TipoAtencion tipo = tipoAtencionRepository.findById(request.getTipoAtencionId()).orElse(null);
-        Integer duracionMinutos = tipo != null ? tipo.getDuracionMinutos() : null;
-        Integer capacidadSimultanea = tipo != null ? tipo.getCapacidadSimultanea() : null;
+        TipoAtencion tipo = request.getTipoAtencionId() == null ? null
+                : tipoAtencionRepository.findById(request.getTipoAtencionId()).orElse(null);
+        var configuracion = tipo == null && configuracionRepository != null
+                ? configuracionRepository.findByProfesionalId(profesionalId).orElse(null) : null;
+        Integer duracionMinutos = tipo != null ? tipo.getDuracionMinutos()
+                : configuracion != null ? configuracion.getDuracionAproximadaPorTurno() : null;
+        Integer capacidadSimultanea = tipo != null ? tipo.getCapacidadSimultanea()
+                : configuracion != null ? configuracion.getCantidadMaxTurnosALaVez() : null;
 
         CrearTurnoManualResponseDto responseDto = CrearTurnoManualResponseDto.fromResultado(
                 resultado,

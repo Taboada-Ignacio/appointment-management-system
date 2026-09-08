@@ -15,6 +15,7 @@ import com.apiturnos.turno.model.MotivoRechazoTurnoManual;
 import com.apiturnos.turno.model.OrigenTurno;
 import com.apiturnos.turno.model.Turno;
 import com.apiturnos.turno.repository.TurnoRepository;
+import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +47,8 @@ class CrearTurnoManualUnitTest {
     @Mock private GestorCambioEstado gestorCambioEstado;
     @Mock private RegistradorAuditoria registradorAuditoria;
     @Mock private RegistradorNotificacion registradorNotificacion;
+    @Mock private TokenConfirmacionTurnoManual tokenConfirmacion;
+    @Mock private DiaAgendaRepository diaAgendaRepository;
 
     private CrearTurnoManual casoDeUso;
     private DiaAgenda dia;
@@ -163,6 +166,24 @@ class CrearTurnoManualUnitTest {
 
         assertThat(resultado.creado()).isTrue();
         verify(turnoRepository).save(any(Turno.class));
+    }
+
+    @Test
+    void booleanoLegadoNoConfirmaAdvertenciasCuandoHayTokensFirmados() {
+        SolicitudCrearTurnoManual solicitud = solicitud(true);
+        when(validador.validar(solicitud)).thenReturn(
+                contexto(List.of(AdvertenciaTurnoManual.CAPACIDAD_SUPERADA)));
+        when(tokenConfirmacion.emitir(any(), any(), any(Integer.class), any(Integer.class)))
+                .thenReturn("token-firmado");
+        CrearTurnoManual estricto = new CrearTurnoManual(
+                validador, turnoRepository, gestorCambioEstado, registradorAuditoria,
+                registradorNotificacion, tokenConfirmacion, diaAgendaRepository);
+
+        ResultadoCrearTurnoManual resultado = estricto.ejecutar(solicitud);
+
+        assertThat(resultado.requiereConfirmacion()).isTrue();
+        assertThat(resultado.tokenConfirmacion()).isEqualTo("token-firmado");
+        verify(turnoRepository, never()).save(any());
     }
 
     @Test

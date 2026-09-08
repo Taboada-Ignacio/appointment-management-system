@@ -10,6 +10,7 @@ import {
   useMonthDetail,
   useSelectableDays,
   useDayDetail,
+  useAssignedAppointments,
 } from '../hooks/useAgenda';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { SkeletonTimeline } from '../../../components/ui/LoadingSkeleton';
@@ -25,6 +26,7 @@ import { professionalContext } from '../../../config/professional';
 import { ChevronLeft, ChevronRight, SlidersHorizontal, Calendar, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function MyMonthPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -74,6 +76,10 @@ export function MyMonthPage() {
     monthId ? firstDay : null,
     monthId ? lastDay : null
   );
+  const { data: assignedAppointments = [] } = useAssignedAppointments(
+    monthId ? firstDay : null,
+    monthId ? lastDay : null
+  );
 
   const handlePrevMonth = () => {
     let nextY = targetYear;
@@ -97,13 +103,17 @@ export function MyMonthPage() {
     setSelectedDayId(null);
   };
 
-  const handleCurrentMonth = () => {
-    setSearchParams({ mes: `${currentYM.year}-${String(currentYM.month).padStart(2, '0')}` });
+  const handleSelectDay = (day) => {
+    setSelectedDayId(day?.id ? String(day.id) : day?.fecha);
+  };
+
+  const handleMonthChange = (month) => {
+    setSearchParams({ mes: `${targetYear}-${String(month).padStart(2, '0')}` });
     setSelectedDayId(null);
   };
 
-  const handleSelectDay = (day) => {
-    setSelectedDayId(day?.id ? String(day.id) : day?.fecha);
+  const handleOpenDay = (day) => {
+    if (day?.fecha) navigate(`/profesional/mi-dia?fecha=${day.fecha}`);
   };
 
   // Combine calendar day data from selectableDays + monthDetail.dias
@@ -180,14 +190,22 @@ export function MyMonthPage() {
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCurrentMonth}
-              >
-                Actual
-              </Button>
+              <Select value={String(targetMonth)} onValueChange={handleMonthChange}>
+                <SelectTrigger
+                  size="sm"
+                  className="w-36"
+                  aria-label="Seleccionar mes para visualizar"
+                >
+                  <SelectValue placeholder="Seleccioná un mes" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTH_NAMES.map((monthName, index) => (
+                    <SelectItem key={monthName} value={String(index + 1)}>
+                      {monthName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button
                 type="button"
                 variant="ghost"
@@ -267,6 +285,7 @@ export function MyMonthPage() {
                 days={combinedDays}
                 selectedDayId={selectedDayId}
                 onSelectDay={handleSelectDay}
+                onDoubleClickDay={handleOpenDay}
                 loading={isLoading}
               />
             </div>
@@ -286,6 +305,8 @@ export function MyMonthPage() {
                     <DailyTimeline
                       day={selectedDayForTimeline}
                       timezone={timezone}
+                      appointments={assignedAppointments.filter((turno) => turno.fecha === selectedDayInfo.fecha)}
+                      showIntegrationNotice={false}
                       onEditGaps={undefined}
                       canEdit={false}
                     />

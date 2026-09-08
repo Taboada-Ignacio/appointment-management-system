@@ -60,8 +60,13 @@ public class ObtenerDetalleMesAgenda {
 
         Map<Long, String> estadosDiasMap = gestorCambioEstado.obtenerEstadosActualesPorEntidades(
                 AmbitoEstado.DIA_AGENDA, diaIds);
-        Map<Long, Long> turnosPorDia = (diaIds.isEmpty() ? List.<com.apiturnos.turno.model.Turno>of()
-                : turnoRepository.findByDiaAgendaIdIn(diaIds)).stream()
+        var turnosDelMes = diaIds.isEmpty() ? List.<com.apiturnos.turno.model.Turno>of()
+                : turnoRepository.findByDiaAgendaIdIn(diaIds);
+        Map<Long, String> estadosTurnos = turnosDelMes.isEmpty() ? Map.of()
+                : gestorCambioEstado.obtenerEstadosActualesPorEntidades(
+                        AmbitoEstado.TURNO, turnosDelMes.stream().map(com.apiturnos.turno.model.Turno::getId).toList());
+        Map<Long, Long> turnosPorDia = turnosDelMes.stream()
+                .filter(turno -> "ASIGNADO".equals(estadosTurnos.get(turno.getId())))
                 .collect(Collectors.groupingBy(turno -> turno.getDiaAgenda().getId(), Collectors.counting()));
         Long profesionalIdReal = mes.getAgendaAnual().getProfesional().getId();
         var excepciones = dias.isEmpty() ? List.<com.apiturnos.agenda.model.ExcepcionAgenda>of()

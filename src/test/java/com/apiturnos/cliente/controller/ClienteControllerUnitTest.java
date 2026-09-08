@@ -6,6 +6,9 @@ import com.apiturnos.cliente.model.Cliente;
 import com.apiturnos.cliente.model.TipoDocumento;
 import com.apiturnos.cliente.service.ListarCarteraClientes;
 import com.apiturnos.cliente.service.ObtenerCliente;
+import com.apiturnos.cliente.service.RegistrarCliente;
+import com.apiturnos.cliente.service.EditarCliente;
+import com.apiturnos.cliente.service.DarDeBajaCliente;
 import com.apiturnos.shared.exception.ClienteNoPerteneceProfesionalException;
 import com.apiturnos.shared.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +30,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,6 +47,9 @@ class ClienteControllerUnitTest {
 
     @Mock
     private ObtenerCliente obtenerCliente;
+    @Mock private RegistrarCliente registrarCliente;
+    @Mock private EditarCliente editarCliente;
+    @Mock private DarDeBajaCliente darDeBajaCliente;
 
     @InjectMocks
     private ClienteController clienteController;
@@ -84,6 +94,87 @@ class ClienteControllerUnitTest {
         mockMvc.perform(get("/api/profesionales/1/clientes/99"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403));
+    }
+
+    @Test
+    @DisplayName("POST crea un cliente y responde 201")
+    void crearCliente() throws Exception {
+        Cliente creado = cliente(10L, "Ana", "Pérez");
+        when(registrarCliente.ejecutar(eq(1L), eq("Ana"), eq("Pérez"), eq(TipoDocumento.DNI),
+                eq("30111222"), eq("ana@test.com"), eq("11223344"), eq(false), eq("profesional")))
+                .thenReturn(creado);
+        when(obtenerCliente.ejecutar(1L, 10L)).thenReturn(new ClienteDetalleDto(creado, "HABILITADO"));
+
+        mockMvc.perform(post("/api/profesionales/1/clientes")
+                        .header("X-Usuario", "profesional")
+                        .contentType("application/json")
+                        .content("""
+                                {"nombre":"Ana","apellido":"Pérez","tipoDocumento":"DNI",
+                                 "numeroDocumento":"30111222","email":"ana@test.com","telefono":"11223344"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "/api/profesionales/1/clientes/10"))
+                .andExpect(jsonPath("$.id").value(10))
+                .andExpect(jsonPath("$.estadoActual").value("HABILITADO"));
+    }
+
+    @Test
+    @DisplayName("PUT modifica todos los datos editables")
+    void editarCliente() throws Exception {
+        Cliente editado = cliente(10L, "Ana María", "Pérez");
+        when(editarCliente.ejecutar(eq(1L), eq(10L), eq("Ana María"), eq("Pérez"),
+                eq(TipoDocumento.DNI), eq("30111222"), eq("ana.nueva@test.com"),
+                eq("1199999999"), eq(false), eq("profesional"))).thenReturn(editado);
+        when(obtenerCliente.ejecutar(1L, 10L)).thenReturn(new ClienteDetalleDto(editado, "HABILITADO"));
+
+        mockMvc.perform(put("/api/profesionales/1/clientes/10")
+                        .header("X-Usuario", "profesional")
+                        .contentType("application/json")
+                        .content("""
+                                {"nombre":"Ana María","apellido":"Pérez","tipoDocumento":"DNI",
+                                 "numeroDocumento":"30111222","email":"ana.nueva@test.com",
+                                 "telefono":"1199999999","notificacionesHabilitadas":false}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombre").value("Ana María"));
+    }
+
+    @Test
+    @DisplayName("DELETE realiza baja lógica y responde 204")
+    void darDeBajaCliente() throws Exception {
+        when(darDeBajaCliente.ejecutar(1L, 10L, "Solicitud del cliente", "profesional"))
+                .thenReturn(cliente(10L, "Ana", "Pérez"));
+
+        mockMvc.perform(delete("/api/profesionales/1/clientes/10")
+                        .header("X-Usuario", "profesional")
+                        .contentType("application/json")
+                        .content("{\"motivo\":\"Solicitud del cliente\"}"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("POST rechaza un email inválido")
+    void crearClienteInvalido() throws Exception {
+        mockMvc.perform(post("/api/profesionales/1/clientes")
+                        .contentType("application/json")
+                        .content("""
+                                {"nombre":"Ana","apellido":"Pérez","tipoDocumento":"DNI",
+                                 "numeroDocumento":"30111222","email":"invalido","telefono":"11223344"}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    private Cliente cliente(Long id, String nombre, String apellido) {
+        Cliente cliente = new Cliente();
+        cliente.setId(id);
+        cliente.setNombre(nombre);
+        cliente.setApellido(apellido);
+        cliente.setTipoDocumento(TipoDocumento.DNI);
+        cliente.setNumeroDocumento("30111222");
+        cliente.setEmail("ana@test.com");
+        cliente.setTelefono("11223344");
+        cliente.setNotificacionesHabilitadas(true);
+        return cliente;
     }
 }
 
