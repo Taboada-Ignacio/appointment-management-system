@@ -20,6 +20,7 @@ import com.apiturnos.turno.repository.TurnoRepository;
 import com.apiturnos.turno.service.CancelarTurno;
 import com.apiturnos.turno.service.DarDeBajaTurno;
 import com.apiturnos.turno.service.ResultadoCancelacionTurno;
+import com.apiturnos.turno.service.ReprogramarTurno;
 import com.apiturnos.turno.service.TipoResolucionCancelacion;
 import com.apiturnos.turno.service.TurnoYaIniciadoException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,13 +57,14 @@ class TurnoControllerUnitTest {
     @Mock private CancelarTurno cancelarTurno;
     @Mock private DarDeBajaTurno darDeBajaTurno;
     @Mock private TurnoRepository turnoRepository;
+    @Mock private ReprogramarTurno reprogramarTurno;
 
     private TurnoController controller;
     private Turno turnoMock;
 
     @BeforeEach
     void setUp() {
-        controller = new TurnoController(cancelarTurno, darDeBajaTurno, turnoRepository);
+        controller = new TurnoController(cancelarTurno, darDeBajaTurno, turnoRepository, reprogramarTurno);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -102,6 +104,45 @@ class TurnoControllerUnitTest {
         turnoMock.setInicioEstimado(Instant.parse("2030-09-10T10:00:00Z"));
         turnoMock.setFinEstimado(Instant.parse("2030-09-10T10:30:00Z"));
         turnoMock.setOrigen(OrigenTurno.PROFESIONAL);
+    }
+
+    @Test
+    @DisplayName("Reprogramación valida disponibilidad y devuelve el turno nuevamente asignado")
+    void testReprogramacionExitosa() throws Exception {
+        Instant nuevoInicio = Instant.parse("2030-09-11T10:00:00Z");
+        Instant nuevoFin = Instant.parse("2030-09-11T10:30:00Z");
+        when(reprogramarTurno.ejecutar(1L, 100L, 11L, nuevoInicio, nuevoFin,
+                "Cambio de día desde Mi día", "admin")).thenReturn(turnoMock);
+        when(turnoRepository.findByIdConRelaciones(100L)).thenReturn(Optional.of(turnoMock));
+
+        mockMvc.perform(post("/api/profesionales/1/turnos/100/reprogramacion")
+                        .header("X-Usuario", "admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"motivo":"Cambio de día desde Mi día","nuevoDiaAgendaId":11,
+                                 "nuevoInicio":"2030-09-11T10:00:00Z","nuevoFin":"2030-09-11T10:30:00Z"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(100)))
+                .andExpect(jsonPath("$.estado", is("ASIGNADO")));
+    }
+
+    @Test
+    @DisplayName("Validación previa de reprogramación comprueba reglas sin modificar el turno")
+    void testValidacionPreviaReprogramacion() throws Exception {
+        Instant nuevoInicio = Instant.parse("2030-09-11T10:00:00Z");
+        Instant nuevoFin = Instant.parse("2030-09-11T10:30:00Z");
+
+        mockMvc.perform(post("/api/profesionales/1/turnos/100/reprogramacion/validacion")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"motivo":"Validación previa","nuevoDiaAgendaId":11,
+                                 "nuevoInicio":"2030-09-11T10:00:00Z","nuevoFin":"2030-09-11T10:30:00Z"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.disponible", is(true)));
+
+        verify(reprogramarTurno).validar(1L, 100L, 11L, nuevoInicio, nuevoFin);
     }
 
     @Test

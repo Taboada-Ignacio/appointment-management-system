@@ -26,7 +26,7 @@ import { professionalContext } from '../../../config/professional';
 import { ChevronLeft, ChevronRight, SlidersHorizontal, Calendar, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MonthWheelPicker } from '@/components/ui/MonthWheelPicker';
 
 export function MyMonthPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -180,40 +180,28 @@ export function MyMonthPage() {
               <span>{showConfigurator ? 'Ocultar configuración' : 'Configurar mes'}</span>
             </Button>
 
-            <div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-xs">
+            <div className="flex items-center gap-1">
               <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={handlePrevMonth}
+                variant="outline"
+                size="icon"
                 aria-label="Mes anterior"
+                onClick={handlePrevMonth}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft />
               </Button>
-              <Select value={String(targetMonth)} onValueChange={handleMonthChange}>
-                <SelectTrigger
-                  size="sm"
-                  className="w-36"
-                  aria-label="Seleccionar mes para visualizar"
-                >
-                  <SelectValue placeholder="Seleccioná un mes" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTH_NAMES.map((monthName, index) => (
-                    <SelectItem key={monthName} value={String(index + 1)}>
-                      {monthName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MonthWheelPicker
+                value={targetMonth}
+                onChange={handleMonthChange}
+                aria-label="Seleccionar mes para visualizar"
+                triggerVariant="ios-compact"
+              />
               <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={handleNextMonth}
+                variant="outline"
+                size="icon"
                 aria-label="Mes siguiente"
+                onClick={handleNextMonth}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight />
               </Button>
             </div>
           </div>

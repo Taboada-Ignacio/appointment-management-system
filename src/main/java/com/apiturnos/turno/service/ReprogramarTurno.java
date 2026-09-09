@@ -9,6 +9,7 @@ import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.notificacion.model.TipoNotificacion;
 import com.apiturnos.notificacion.service.RegistradorNotificacion;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
+import com.apiturnos.shared.exception.TurnoNoPerteneceProfesionalException;
 import com.apiturnos.turno.model.Turno;
 import com.apiturnos.turno.model.TurnoHistorial;
 import com.apiturnos.turno.repository.TurnoHistorialRepository;
@@ -48,8 +49,35 @@ public class ReprogramarTurno {
     @Transactional
     public Turno ejecutar(Long turnoId, Long nuevoDiaAgendaId, Instant nuevoInicio,
                            Instant nuevoFin, String motivo, String usuario) {
+        return ejecutarInterno(null, turnoId, nuevoDiaAgendaId, nuevoInicio, nuevoFin, motivo, usuario);
+    }
+
+    @Transactional
+    public Turno ejecutar(Long profesionalId, Long turnoId, Long nuevoDiaAgendaId, Instant nuevoInicio,
+                          Instant nuevoFin, String motivo, String usuario) {
+        return ejecutarInterno(profesionalId, turnoId, nuevoDiaAgendaId, nuevoInicio, nuevoFin, motivo, usuario);
+    }
+
+    @Transactional(readOnly = true)
+    public void validar(Long profesionalId, Long turnoId, Long nuevoDiaAgendaId,
+                        Instant nuevoInicio, Instant nuevoFin) {
+        Turno turno = turnoRepository.findByIdConRelaciones(turnoId)
+                .orElseThrow(() -> new EntidadNoEncontradaException("Turno", turnoId));
+        validarPertenencia(turno, profesionalId);
+        String estadoActual = gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, turnoId);
+        gestorCambioEstado.validarTransicion(
+                AmbitoEstado.TURNO, estadoActual, PoliticaTransicionesTurno.REPROGRAMADO);
+        DiaAgenda nuevoDia = diaAgendaRepository.findById(nuevoDiaAgendaId)
+                .orElseThrow(() -> new EntidadNoEncontradaException("DiaAgenda", nuevoDiaAgendaId));
+        validadorReprogramacion.validar(turno, nuevoDia, nuevoInicio, nuevoFin);
+    }
+
+    private Turno ejecutarInterno(Long profesionalIdEsperado, Long turnoId, Long nuevoDiaAgendaId,
+                                  Instant nuevoInicio, Instant nuevoFin, String motivo, String usuario) {
         Turno turno = turnoRepository.findByIdForUpdate(turnoId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("Turno", turnoId));
+
+        validarPertenencia(turno, profesionalIdEsperado);
 
         String estadoActual = gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.TURNO, turnoId);
         gestorCambioEstado.validarTransicion(
@@ -96,5 +124,12 @@ public class ReprogramarTurno {
                 "Su turno ha sido reprogramado para el " + nuevoDia.getFecha() + ". Motivo: " + motivo);
 
         return turno;
+    }
+
+    private void validarPertenencia(Turno turno, Long profesionalIdEsperado) {
+        Long profesionalActual = turno.getDiaAgenda().getMesAgenda().getAgendaAnual().getProfesional().getId();
+        if (profesionalIdEsperado != null && !profesionalActual.equals(profesionalIdEsperado)) {
+            throw new TurnoNoPerteneceProfesionalException(turno.getId(), profesionalIdEsperado);
+        }
     }
 }

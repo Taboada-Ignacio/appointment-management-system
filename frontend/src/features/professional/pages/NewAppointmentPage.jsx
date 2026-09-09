@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { formatMonthYear, getMonthRange, getTodayInTimezone, parseDateString } from '@/utils/dates';
 import { professionalContext } from '@/config/professional';
 import { createManualAppointment, getAppointmentConfiguration, getAppointmentDay, listAppointmentDays, listSuggestedTimes, searchClients, validateManualAppointment } from '../api/appointmentApi';
+import { useAssignedAppointments } from '../hooks/useAgenda';
 
 const WARNING_LABELS = {
   HORARIO_FUERA_DE_BRECHA: 'El horario está fuera de las franjas horarias configuradas (brechas de atención).',
@@ -74,6 +75,7 @@ export function NewAppointmentPage() {
 
   const selectedType = types.find((type) => String(type.id) === typeId);
   const date = selectedDay?.fecha || '';
+  const { data: assignedAppointments = [] } = useAssignedAppointments(date || null, date || null);
   const payload = useMemo(() => ({
     diaAgendaId: selectedDay?.diaAgendaId ?? selectedDay?.id,
     fecha: date,
@@ -154,9 +156,8 @@ export function NewAppointmentPage() {
       <div className="grid gap-2">{clients.map((item) => <Button key={item.id} variant="outline" className="h-auto justify-start py-3" onClick={() => { setClient(item); setStep(2); }}>{item.nombre} {item.apellido} · {item.tipoDocumento} {item.numeroDocumento}</Button>)}</div>
     </CardContent></Card>}
 
-    {step === 2 && <Card><CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle>Seleccionar día</CardTitle><p className="mt-1 text-sm text-muted-foreground">Un clic marca el día; doble clic lo selecciona directamente.</p></div><div className="flex items-center gap-1"><Button variant="outline" size="icon" aria-label="Mes anterior" onClick={() => changeMonth(-1)}><ChevronLeft /></Button><span className="min-w-36 text-center font-semibold">{formatMonthYear(viewMonth.month, viewMonth.year)}</span><Button variant="outline" size="icon" aria-label="Mes siguiente" onClick={() => changeMonth(1)}><ChevronRight /></Button></div></div></CardHeader><CardContent className="space-y-4">
-      <div className="grid items-start gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <div className="space-y-2"><Label>Mes</Label><MonthWheelPicker aria-label="Seleccionar mes del turno" value={viewMonth.month} onChange={(month) => { setViewMonth((current) => ({ ...current, month })); setCandidateDay(null); }} /></div>
+    {step === 2 && <Card><CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle>Seleccionar día</CardTitle><p className="mt-1 text-sm text-muted-foreground">Un clic marca el día; doble clic lo selecciona directamente.</p></div><div className="flex items-center gap-1"><Button variant="outline" size="icon" aria-label="Mes anterior" onClick={() => changeMonth(-1)}><ChevronLeft /></Button><MonthWheelPicker aria-label="Seleccionar mes del turno" value={viewMonth.month} onChange={(month) => { setViewMonth((current) => ({ ...current, month })); setCandidateDay(null); }} triggerVariant="ios-compact" /><Button variant="outline" size="icon" aria-label="Mes siguiente" onClick={() => changeMonth(1)}><ChevronRight /></Button></div></div></CardHeader><CardContent className="space-y-4">
+      <div>
         <MonthCalendar year={viewMonth.year} month={viewMonth.month} days={days.map((day) => ({ ...day, id: day.diaAgendaId ?? day.id, estadoActual: day.estado }))} selectedDayId={candidateDay?.diaAgendaId ?? candidateDay?.id} onSelectDay={setCandidateDay} onDoubleClickDay={acceptDay} />
       </div>
       {candidateDay && !candidateDay.seleccionable && <p role="alert" className="text-sm font-medium text-destructive">{candidateDay.mensaje || 'Día no seleccionable'}</p>}
@@ -165,7 +166,7 @@ export function NewAppointmentPage() {
 
     {step === 3 && <Card><CardHeader><div className="flex items-center justify-between"><CardTitle>Horario según configuración</CardTitle><Button variant="outline" onClick={() => { setPreview(null); setStep(2); }}><ChevronLeft />Volver al día</Button></div></CardHeader><CardContent className="grid gap-6 lg:grid-cols-3">
       <section data-testid="appointment-availability-column" className="space-y-4 lg:col-span-1" aria-label="Disponibilidad del día">
-        <DailyTimeline day={dayDetail} timezone={professionalContext.timezone} showIntegrationNotice={false} candidateSlots={showOverlapping ? suggestions : suggestions.filter((slot) => !(slot.advertencias || []).includes('CAPACIDAD_SUPERADA'))} selectedCandidate={selectedSuggestion} onSelectCandidate={chooseSuggestion} zoom={timelineZoom} onZoomChange={setTimelineZoom} />
+        <DailyTimeline day={dayDetail} timezone={professionalContext.timezone} showIntegrationNotice={false} appointments={assignedAppointments} candidateSlots={showOverlapping ? suggestions : suggestions.filter((slot) => !(slot.advertencias || []).includes('CAPACIDAD_SUPERADA'))} selectedCandidate={selectedSuggestion} onSelectCandidate={chooseSuggestion} zoom={timelineZoom} onZoomChange={setTimelineZoom} />
         {!selectedType && <p className="rounded-xl border p-4 text-sm text-muted-foreground">Configurá la duración aproximada y la capacidad para calcular candidatos.</p>}
       </section>
       <section className="space-y-4 rounded-xl border bg-muted/15 p-4 lg:col-span-2" aria-label="Horario estimado">

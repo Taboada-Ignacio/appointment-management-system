@@ -13,7 +13,8 @@ import { getCurrentYearMonth, MONTH_NAMES } from '../../../utils/dates';
 import { validateGaps } from '../../../utils/gaps';
 import { isMonthConfigured } from '../../../utils/status';
 import { professionalContext } from '../../../config/professional';
-import { AlertTriangle, CheckCircle2, LoaderCircle, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, LoaderCircle, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthWheelPicker } from '@/components/ui/MonthWheelPicker';
 
@@ -115,13 +116,32 @@ export function MyWeekPage() {
         </CardHeader>
         <CardContent className="space-y-4 pt-0">
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-          <div className="w-full max-w-sm flex-1">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Mes anterior"
+              disabled={!months?.length}
+              onClick={() => setSelectedMonthNumber((prev) => Math.max(1, (prev || 1) - 1))}
+            >
+              <ChevronLeft />
+            </Button>
             <MonthWheelPicker
               aria-label="Seleccionar mes de destino"
               value={selectedMonthNumber}
               disabled={!months?.length}
               onChange={setSelectedMonthNumber}
+              triggerVariant="ios-compact"
             />
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Mes siguiente"
+              disabled={!months?.length}
+              onClick={() => setSelectedMonthNumber((prev) => Math.min(12, (prev || 1) + 1))}
+            >
+              <ChevronRight />
+            </Button>
           </div>
 
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">

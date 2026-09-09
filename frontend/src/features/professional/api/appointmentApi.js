@@ -29,8 +29,9 @@ export function getAppointmentDay(diaAgendaId) {
   return api.get(`${base}/dias-agenda/${encodeURIComponent(diaAgendaId)}`);
 }
 
-export function listSuggestedTimes(fecha) {
+export function listSuggestedTimes(fecha, tipoAtencionId = null) {
   const params = new URLSearchParams({ fecha });
+  if (tipoAtencionId) params.set('tipoAtencionId', tipoAtencionId);
   return api.get(`${base}/turnos/horarios-sugeridos?${params}`);
 }
 

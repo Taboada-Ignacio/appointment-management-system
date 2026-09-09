@@ -1,8 +1,24 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { useState } from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import { DailyTimeline } from '../features/professional/components/DailyTimeline';
 
 describe('DailyTimeline Component', () => {
+  it('ofrece controles de zoom aun cuando el padre no lo controla', () => {
+    render(
+      <DailyTimeline
+        day={{ fecha: '2026-09-15', estadoActual: 'ACTIVO', brechas: [{ horaInicio: '09:00', horaFin: '10:00' }] }}
+        timezone="America/Argentina/Buenos_Aires"
+      />
+    );
+
+    expect(screen.getByLabelText('Zoom del cronograma: 100%')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Aumentar zoom' }));
+    expect(screen.getByLabelText('Zoom del cronograma: 125%')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Restablecer zoom' }));
+    expect(screen.getByLabelText('Zoom del cronograma: 100%')).toBeInTheDocument();
+  });
+
   it('renders time range starting one hour before the first gap and ending one hour after the last gap', () => {
     const dayWithGaps = {
       fecha: '2026-09-15',
@@ -143,6 +159,73 @@ describe('DailyTimeline Component', () => {
     expect(
       screen.getByText('Día con habilitación extraordinaria de atención')
     ).toBeInTheDocument();
+  });
+
+  it('reflects assigned appointments in both the timeline and availability signal', () => {
+    const { container } = render(
+      <DailyTimeline
+        day={{ fecha: '2026-09-15', estadoActual: 'ACTIVO', brechas: [{ horaInicio: '09:00', horaFin: '13:00' }] }}
+        timezone="America/Argentina/Buenos_Aires"
+        appointments={[{
+          id: 44,
+          inicioEstimado: '2026-09-15T13:00:00Z',
+          finEstimado: '2026-09-15T13:30:00Z',
+          cliente: { nombre: 'Ana', apellido: 'Paz' },
+        }]}
+      />
+    );
+
+    expect(screen.getByLabelText(/Turno asignado de Ana Paz/)).toBeInTheDocument();
+    expect(container.querySelector('[title="Turno asignado: 10:00 - 10:30"]')).toBeInTheDocument();
+  });
+
+  it('allows selecting an assigned appointment when a handler is provided', () => {
+    const onSelectAppointment = vi.fn();
+    const appointment = {
+      id: 44,
+      inicioEstimado: '2026-09-15T13:00:00Z',
+      finEstimado: '2026-09-15T13:30:00Z',
+      cliente: { nombre: 'Ana', apellido: 'Paz' },
+    };
+
+    render(
+      <DailyTimeline
+        day={{ fecha: '2026-09-15', estadoActual: 'ACTIVO', brechas: [{ horaInicio: '09:00', horaFin: '13:00' }] }}
+        timezone="America/Argentina/Buenos_Aires"
+        appointments={[appointment]}
+        onSelectAppointment={onSelectAppointment}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Turno asignado de Ana Paz/ }));
+    expect(onSelectAppointment).toHaveBeenCalledWith(expect.objectContaining({ id: 44 }));
+  });
+
+  it('deselects an appointment when the selected one is clicked again', () => {
+    const appointment = {
+      id: 44,
+      inicioEstimado: '2026-09-15T13:00:00Z',
+      finEstimado: '2026-09-15T13:30:00Z',
+      cliente: { nombre: 'Ana', apellido: 'Paz' },
+    };
+    function Harness() {
+      const [selectedId, setSelectedId] = useState(null);
+      const toggle = (item) => setSelectedId((current) => current === item.id ? null : item.id);
+      return <DailyTimeline
+        day={{ fecha: '2026-09-15', estadoActual: 'ACTIVO', brechas: [{ horaInicio: '09:00', horaFin: '13:00' }] }}
+        timezone="America/Argentina/Buenos_Aires"
+        appointments={[appointment]}
+        selectedAppointmentId={selectedId}
+        onSelectAppointment={toggle}
+      />;
+    }
+
+    render(<Harness />);
+    const turn = screen.getByRole('button', { name: /Turno asignado de Ana Paz/ });
+    fireEvent.click(turn);
+    expect(turn).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(turn);
+    expect(turn).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('renders extraordinary gaps with emerald styling and availability signal legend', () => {

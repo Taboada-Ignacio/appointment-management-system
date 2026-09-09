@@ -4,12 +4,14 @@ import com.apiturnos.turno.dto.CancelarTurnoRequestDto;
 import com.apiturnos.turno.dto.CancelarTurnoResponseDto;
 import com.apiturnos.turno.dto.DarDeBajaTurnoRequestDto;
 import com.apiturnos.turno.dto.TurnoResponseDto;
+import com.apiturnos.turno.dto.ReprogramarTurnoRequestDto;
 import com.apiturnos.turno.model.Turno;
 import com.apiturnos.turno.repository.TurnoRepository;
 import com.apiturnos.turno.service.CancelarTurno;
 import com.apiturnos.turno.service.DarDeBajaTurno;
 import com.apiturnos.turno.service.PoliticaTransicionesTurno;
 import com.apiturnos.turno.service.ResultadoCancelacionTurno;
+import com.apiturnos.turno.service.ReprogramarTurno;
 import com.apiturnos.turno.service.TipoResolucionCancelacion;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
 
 /**
  * Controlador REST para operaciones de ciclo de vida de Turnos (Cancelación y Baja Administrativa).
@@ -32,13 +36,40 @@ public class TurnoController {
     private final CancelarTurno cancelarTurno;
     private final DarDeBajaTurno darDeBajaTurno;
     private final TurnoRepository turnoRepository;
+    private final ReprogramarTurno reprogramarTurno;
 
     public TurnoController(CancelarTurno cancelarTurno,
                            DarDeBajaTurno darDeBajaTurno,
-                           TurnoRepository turnoRepository) {
+                           TurnoRepository turnoRepository,
+                           ReprogramarTurno reprogramarTurno) {
         this.cancelarTurno = cancelarTurno;
         this.darDeBajaTurno = darDeBajaTurno;
         this.turnoRepository = turnoRepository;
+        this.reprogramarTurno = reprogramarTurno;
+    }
+
+    @PostMapping("/{turnoId}/reprogramacion")
+    @Transactional
+    public ResponseEntity<TurnoResponseDto> reprogramar(
+            @PathVariable Long profesionalId,
+            @PathVariable Long turnoId,
+            @Valid @RequestBody ReprogramarTurnoRequestDto request,
+            @RequestHeader(value = "X-Usuario", defaultValue = "profesional") String usuario) {
+        Turno turno = reprogramarTurno.ejecutar(
+                profesionalId, turnoId, request.nuevoDiaAgendaId(), request.nuevoInicio(),
+                request.nuevoFin(), request.motivo(), usuario);
+        Turno turnoConRelaciones = turnoRepository.findByIdConRelaciones(turno.getId()).orElse(turno);
+        return ResponseEntity.ok(TurnoResponseDto.from(turnoConRelaciones, PoliticaTransicionesTurno.ASIGNADO));
+    }
+
+    @PostMapping("/{turnoId}/reprogramacion/validacion")
+    public ResponseEntity<Map<String, Boolean>> validarReprogramacion(
+            @PathVariable Long profesionalId,
+            @PathVariable Long turnoId,
+            @Valid @RequestBody ReprogramarTurnoRequestDto request) {
+        reprogramarTurno.validar(profesionalId, turnoId, request.nuevoDiaAgendaId(),
+                request.nuevoInicio(), request.nuevoFin());
+        return ResponseEntity.ok(Map.of("disponible", true));
     }
 
     /**

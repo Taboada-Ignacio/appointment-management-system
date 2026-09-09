@@ -69,4 +69,40 @@ describe('MonthWheelPicker', () => {
     expect(screen.queryByRole('listbox', { name: 'Mes' })).not.toBeInTheDocument();
     expect(onChange).toHaveBeenCalledTimes(1);
   });
+
+  it('soporta triggerVariant="ios-compact" con role="combobox" y navegación por teclado Home/End/Escape', () => {
+    const onChange = vi.fn();
+    render(
+      <MonthWheelPicker
+        value={9}
+        onChange={onChange}
+        aria-label="Seleccionar mes para visualizar"
+        triggerVariant="ios-compact"
+        role="combobox"
+      />
+    );
+
+    const combobox = screen.getByRole('combobox', { name: 'Seleccionar mes para visualizar' });
+    expect(combobox).toBeInTheDocument();
+    expect(combobox).toHaveAttribute('data-slot', 'select-trigger');
+    expect(combobox).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText('Septiembre')).toBeInTheDocument();
+
+    // Abrir con Enter o click
+    fireEvent.click(combobox);
+    expect(combobox).toHaveAttribute('aria-expanded', 'true');
+    const listbox = screen.getByRole('listbox', { name: 'Seleccionar mes para visualizar' });
+    expect(listbox).toBeInTheDocument();
+
+    // Escape -> cierra el selector
+    fireEvent.keyDown(listbox, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+    // Trigger admite Home y End directamente
+    fireEvent.keyDown(combobox, { key: 'Home' });
+    expect(onChange).toHaveBeenCalledWith(1);
+
+    fireEvent.keyDown(combobox, { key: 'End' });
+    expect(onChange).toHaveBeenCalledWith(12);
+  });
 });

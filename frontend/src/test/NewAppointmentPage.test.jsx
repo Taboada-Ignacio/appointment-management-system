@@ -45,8 +45,8 @@ describe('alta manual de turnos', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Buscar' }));
     fireEvent.click(await screen.findByRole('button', { name: /Ana Pérez/ }));
     expect(screen.getByLabelText('Progreso del alta').children).toHaveLength(4);
-    expect(screen.queryByRole('listbox', { name: 'Seleccionar mes del turno' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar mes del turno' }));
+    expect(screen.getByRole('combobox', { name: 'Seleccionar mes del turno' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Seleccionar mes del turno' }));
     expect(screen.getByRole('listbox', { name: 'Seleccionar mes del turno' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Septiembre' })).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(screen.getByRole('listbox', { name: 'Seleccionar mes del turno' }), { key: 'Escape' });

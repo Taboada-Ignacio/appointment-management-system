@@ -23,10 +23,11 @@ export function ConfirmDialog({
   loading = false,
   confirmDisabled = false,
   children = null,
+  contentClassName = '',
 }) {
   return (
     <AlertDialog open={open} onOpenChange={loading ? undefined : onOpenChange}>
-      <AlertDialogContent className="max-h-[min(90vh,44rem)] overflow-y-auto sm:max-w-lg">
+      <AlertDialogContent className={`max-h-[min(90vh,44rem)] overflow-y-auto sm:max-w-lg ${contentClassName}`}>
         <AlertDialogHeader>
           {variant === 'danger' && (
             <AlertDialogMedia className="bg-destructive/10 text-destructive">

@@ -99,6 +99,14 @@ export function cancelAppointment(appointmentId, motivo) {
   return api.post(`${appointmentPath(appointmentId)}/cancelacion`, body, actorOptions);
 }
 
+export function rescheduleAppointment(appointmentId, payload) {
+  return api.post(`${appointmentPath(appointmentId)}/reprogramacion`, payload, actorOptions);
+}
+
+export function validateAppointmentReschedule(appointmentId, payload) {
+  return api.post(`${appointmentPath(appointmentId)}/reprogramacion/validacion`, payload, actorOptions);
+}
+
 export function deactivateAppointment(appointmentId, motivo) {
   return api.post(`${appointmentPath(appointmentId)}/baja`, { motivo }, actorOptions);
 }
@@ -120,6 +128,8 @@ export const agendaApi = Object.freeze({
   getDay,
   configureDay,
   cancelAppointment,
+  rescheduleAppointment,
+  validateAppointmentReschedule,
   deactivateAppointment,
 });
 

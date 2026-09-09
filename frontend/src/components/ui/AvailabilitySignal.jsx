@@ -8,6 +8,7 @@ export const AvailabilitySignal = ({
   bloqueosHorario = [],
   habilitaciones = [],
   habilitacionesExtraordinarias = [],
+  asignados = [],
   dayStart = '07:00', 
   dayEnd = '21:00', 
   variant = 'compact',
@@ -48,6 +49,13 @@ export const AvailabilitySignal = ({
   const startMin = timeToMinutes(dayStart);
   const endMin = timeToMinutes(dayEnd);
   const totalMin = endMin - startMin;
+  const assignedSegments = (asignados || [])
+    .filter((turno) => turno?.horaInicio && turno?.horaFin)
+    .map((turno) => ({
+      start: Math.max(startMin, timeToMinutes(turno.horaInicio)),
+      end: Math.min(endMin, timeToMinutes(turno.horaFin)),
+    }))
+    .filter((turno) => turno.end > turno.start);
 
   return (
     <div 
@@ -57,7 +65,7 @@ export const AvailabilitySignal = ({
       tabIndex={variant === 'detailed' ? 0 : undefined}
     >
       <div className={cn(
-        "flex w-full overflow-hidden rounded-full bg-muted",
+        "relative flex w-full overflow-hidden rounded-full bg-muted",
         variant === 'compact' ? "h-2.5" : "h-5"
       )}>
         {segments.map((seg, idx) => {
@@ -91,6 +99,17 @@ export const AvailabilitySignal = ({
             />
           );
         })}
+        {assignedSegments.map((turno, index) => (
+          <div
+            key={`assigned-${turno.start}-${turno.end}-${index}`}
+            className="absolute inset-y-0 z-10 bg-sky-600 hover:brightness-95"
+            style={{
+              left: `${((turno.start - startMin) / totalMin) * 100}%`,
+              width: `${((turno.end - turno.start) / totalMin) * 100}%`,
+            }}
+            title={`Turno asignado: ${minutesToLabel(turno.start)} - ${minutesToLabel(turno.end)}`}
+          />
+        ))}
       </div>
       {variant === 'detailed' && (
         <div className="mt-1.5 flex justify-between px-1 text-[10px] font-medium text-muted-foreground" aria-hidden="true">
@@ -101,3 +120,9 @@ export const AvailabilitySignal = ({
     </div>
   );
 };
+
+function minutesToLabel(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
+}

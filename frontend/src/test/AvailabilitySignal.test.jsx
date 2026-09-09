@@ -81,5 +81,20 @@ describe('AvailabilitySignal Component', () => {
     expect(extraordinarySegment).toBeInTheDocument();
     expect(extraordinarySegment.className).toContain('bg-emerald-500');
   });
+
+  it('reflects assigned appointments over the availability signal', () => {
+    const { container } = render(
+      <AvailabilitySignal
+        brechas={[{ horaInicio: '09:00', horaFin: '13:00' }]}
+        asignados={[{ horaInicio: '10:00', horaFin: '10:30' }]}
+        dayStart="08:00"
+        dayEnd="14:00"
+      />
+    );
+
+    const assignedSegment = container.querySelector('[title="Turno asignado: 10:00 - 10:30"]');
+    expect(assignedSegment).toBeInTheDocument();
+    expect(assignedSegment.className).toContain('bg-sky-600');
+  });
 });
 

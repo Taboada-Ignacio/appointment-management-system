@@ -25,6 +25,7 @@ export function MonthCalendar({
   onSelectDay = null,
   onDoubleClickDay = null,
   loading = false,
+  showAvailabilitySummary = false,
 }) {
   const numDays = getDaysInMonth(year, month);
   const dayButtonRefs = useRef(new Map());
@@ -172,6 +173,13 @@ export function MonthCalendar({
               const isPastDate = isPast(cell.dateStr);
               const gapCount = Number(cell.data?.cantidadBrechas ?? cell.data?.brechas?.length ?? 0);
               const appointmentCount = Number(cell.data?.cantidadTurnosAsignados ?? 0);
+              const availabilityLabel = gapCount >= 3
+                ? 'Disponibilidad alta'
+                : gapCount === 2
+                  ? 'Disponibilidad media'
+                  : gapCount === 1
+                    ? 'Disponibilidad limitada'
+                    : 'Sin disponibilidad';
               const rawExceptions = cell.data?.tiposExcepcion ?? cell.data?.excepciones ?? [];
               const exceptionTypes = Array.isArray(rawExceptions)
                 ? rawExceptions
@@ -332,7 +340,7 @@ export function MonthCalendar({
                     {cell.data && (
                       <div className="space-y-0.5 text-[9px] font-semibold text-foreground/75 sm:text-[10px]">
                         <span className="block">{gapCount} {gapCount === 1 ? 'brecha' : 'brechas'}</span>
-                        <span className="block">{appointmentCount} {appointmentCount === 1 ? 'turno activo' : 'turnos activos'}</span>
+                        <span className="block">{showAvailabilitySummary ? availabilityLabel : `${appointmentCount} ${appointmentCount === 1 ? 'turno activo' : 'turnos activos'}`}</span>
                       </div>
                     )}
                     {visibleExceptionTypes.length > 0 && (

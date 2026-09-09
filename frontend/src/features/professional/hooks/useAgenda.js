@@ -14,7 +14,9 @@ import {
   listSelectableDays,
   getDay,
   configureDay,
-  listAssignedAppointments
+  listAssignedAppointments,
+  cancelAppointment,
+  rescheduleAppointment
 } from '../api/agendaApi';
 import { professionalContext } from '../../../config/professional';
 import { validateGaps } from '../../../utils/gaps';
@@ -74,6 +76,28 @@ export function useAssignedAppointments(desde, hasta) {
     queryKey: agendaKeys.assignedAppointments(desde, hasta),
     queryFn: () => listAssignedAppointments(desde, hasta),
     enabled: Boolean(desde && hasta),
+  });
+}
+
+export function useCancelAppointment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ appointmentId, motivo }) => cancelAppointment(appointmentId, motivo),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...agendaKeys.all(), 'assignedAppointments'] });
+      queryClient.invalidateQueries({ queryKey: [...agendaKeys.all(), 'selectableDays'] });
+    },
+  });
+}
+
+export function useRescheduleAppointment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ appointmentId, ...payload }) => rescheduleAppointment(appointmentId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...agendaKeys.all(), 'assignedAppointments'] });
+      queryClient.invalidateQueries({ queryKey: [...agendaKeys.all(), 'selectableDays'] });
+    },
   });
 }
 

@@ -52,12 +52,17 @@ export function DailyTimeline({
   candidateSlots = [],
   selectedCandidate = null,
   onSelectCandidate = null,
-  zoom = 100,
+  zoom: controlledZoom,
   onZoomChange = null,
   appointments = [],
+  selectedAppointmentId = null,
+  onSelectAppointment = null,
 }) {
   const [currentTimeMinutes, setCurrentTimeMinutes] = useState(() => currentMinutesInTimezone(timezone));
+  const [internalZoom, setInternalZoom] = useState(100);
   const timelineRef = useRef(null);
+  const zoom = controlledZoom ?? internalZoom;
+  const setZoom = onZoomChange ?? setInternalZoom;
 
   const isTodayDay = Boolean(day?.fecha && isToday(day.fecha, timezone));
 
@@ -73,15 +78,15 @@ export function DailyTimeline({
 
   useEffect(() => {
     const timeline = timelineRef.current;
-    if (!timeline || !onZoomChange) return undefined;
+    if (!timeline) return undefined;
     const handleWheel = (event) => {
       if (!event.ctrlKey) return;
       event.preventDefault();
-      onZoomChange(nextZoom(zoom, event.deltaY < 0 ? 1 : -1));
+      setZoom(nextZoom(zoom, event.deltaY < 0 ? 1 : -1));
     };
     timeline.addEventListener('wheel', handleWheel, { passive: false });
     return () => timeline.removeEventListener('wheel', handleWheel);
-  }, [onZoomChange, zoom]);
+  }, [setZoom, zoom]);
 
   if (!day) {
     return (
@@ -160,7 +165,7 @@ export function DailyTimeline({
   const displayEndHour = `${String(endHour).padStart(2, '0')}:00`;
   const timelineHeight = Math.max(440, (endHour - startHour) * 55) * (zoom / 100);
   const changeZoom = (direction) => {
-    onZoomChange?.(nextZoom(zoom, direction));
+    setZoom(nextZoom(zoom, direction));
   };
 
   const renderHourLines = () => {
@@ -305,16 +310,21 @@ export function DailyTimeline({
     const patient = appointment.cliente
       ? `${appointment.cliente.nombre || ''} ${appointment.cliente.apellido || ''}`.trim()
       : 'Cliente';
+    const selected = String(selectedAppointmentId) === String(appointment.id);
+    const AppointmentElement = onSelectAppointment ? 'button' : 'div';
     return (
-      <div
+      <AppointmentElement
+        type={onSelectAppointment ? 'button' : undefined}
         key={`appointment-${appointment.id ?? idx}`}
-        className="absolute left-16 right-3 z-15 flex flex-col justify-center overflow-hidden rounded-md border border-sky-600 bg-sky-100 px-2 text-[10px] font-semibold text-sky-950 shadow-sm dark:bg-sky-950 dark:text-sky-100"
+        onClick={onSelectAppointment ? () => onSelectAppointment(appointment) : undefined}
+        aria-pressed={onSelectAppointment ? selected : undefined}
+        className={`absolute left-16 right-3 z-15 flex flex-col justify-center overflow-hidden rounded-md border px-2 text-left text-[10px] font-semibold shadow-sm transition ${selected ? 'border-primary bg-primary text-primary-foreground ring-2 ring-primary/30' : 'border-sky-600 bg-sky-100 text-sky-950 dark:bg-sky-950 dark:text-sky-100'} ${onSelectAppointment ? 'cursor-pointer hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
         style={{ top: `${((adjustedStart - startHour * 60) / totalMinutes) * 100}%`, height: `${((adjustedEnd - adjustedStart) / totalMinutes) * 100}%`, minHeight: '30px' }}
         aria-label={`Turno asignado de ${patient}, ${formatTimeRange(appointment.horaInicio, appointment.horaFin)}`}
       >
         <span>{formatTimeRange(appointment.horaInicio, appointment.horaFin)}</span>
         <span className="truncate font-normal">{patient} · Asignado</span>
-      </div>
+      </AppointmentElement>
     );
   });
 
@@ -368,17 +378,16 @@ export function DailyTimeline({
           brechas={todasBrechas}
           bloqueos={bloqueosHorario}
           habilitaciones={habilitaciones}
+          asignados={appointmentSlots}
           dayStart={displayStartHour}
           dayEnd={displayEndHour}
           variant="detailed"
         />
-        {onZoomChange && (
-          <div className="mt-3 flex items-center justify-end gap-1" aria-label={`Zoom del cronograma: ${zoom}%`}>
-            <Button type="button" variant="outline" size="icon" aria-label="Reducir zoom" title="Reducir zoom" disabled={zoom <= 50} onClick={() => changeZoom(-1)}><Minus /></Button>
-            <Button type="button" variant="outline" size="icon" aria-label="Restablecer zoom" title="Restablecer zoom" disabled={zoom === 100} onClick={() => onZoomChange(100)}><Maximize /></Button>
-            <Button type="button" variant="outline" size="icon" aria-label="Aumentar zoom" title="Aumentar zoom" disabled={zoom >= 300} onClick={() => changeZoom(1)}><Plus /></Button>
-          </div>
-        )}
+        <div className="mt-3 flex items-center justify-end gap-1" aria-label={`Zoom del cronograma: ${zoom}%`}>
+          <Button type="button" variant="outline" size="icon" aria-label="Reducir zoom" title="Reducir zoom" disabled={zoom <= 50} onClick={() => changeZoom(-1)}><Minus /></Button>
+          <Button type="button" variant="outline" size="icon" aria-label="Restablecer zoom" title="Restablecer zoom" disabled={zoom === 100} onClick={() => setZoom(100)}><Maximize /></Button>
+          <Button type="button" variant="outline" size="icon" aria-label="Aumentar zoom" title="Aumentar zoom" disabled={zoom >= 300} onClick={() => changeZoom(1)}><Plus /></Button>
+        </div>
         {(bloqueosHorario.length > 0 || habilitaciones.length > 0) && (
           <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">

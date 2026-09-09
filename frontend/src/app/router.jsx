@@ -7,6 +7,7 @@ import { MyYearPage } from '../features/professional/pages/MyYearPage';
 import { SettingsPage } from '../features/professional/pages/SettingsPage';
 import { AbsenceManagementPage } from '../features/professional/pages/AbsenceManagementPage';
 import { NewAppointmentPage } from '../features/professional/pages/NewAppointmentPage';
+import { RescheduleAppointmentPage } from '../features/professional/pages/RescheduleAppointmentPage';
 import { NotFoundPage } from '../features/professional/pages/NotFoundPage';
 
 /**
@@ -26,6 +27,7 @@ export function createRoutes() {
         { index: true, element: <Navigate to="/profesional/mi-dia" replace /> },
         { path: 'mi-dia', element: <MyDayPage /> },
         { path: 'turnos/nuevo', element: <NewAppointmentPage /> },
+        { path: 'turnos/:appointmentId/cambiar-dia', element: <RescheduleAppointmentPage /> },
         { path: 'mi-semana', element: <MyWeekPage /> },
         { path: 'mi-mes', element: <MyMonthPage /> },
         { path: 'mi-anio', element: <MyYearPage /> },
