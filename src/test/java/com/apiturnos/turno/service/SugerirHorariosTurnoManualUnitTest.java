@@ -51,16 +51,7 @@ class SugerirHorariosTurnoManualUnitTest {
 
     @BeforeEach
     void setUp() {
-        Clock clock = Clock.fixed(Instant.parse("2026-09-10T09:15:00Z"), ZoneOffset.UTC);
-        casoDeUso = new SugerirHorariosTurnoManual(
-                tipoAtencionRepository,
-                diaAgendaRepository,
-                excepcionAgendaRepository,
-                calcularDisponibilidadDia,
-                verificadorCapacidad,
-                gestorCambioEstado,
-                evaluadorDisponibilidad,
-                clock);
+        construirCasoDeUsoEn(Instant.parse("2026-09-10T07:15:00Z"));
 
         tipo = new TipoAtencion();
         tipo.setId(2L);
@@ -86,6 +77,19 @@ class SugerirHorariosTurnoManualUnitTest {
                 .thenReturn(List.of(new IntervaloHorario(LocalTime.of(8, 0), LocalTime.of(10, 0))));
         lenient().when(verificadorCapacidad.evaluar(any(), any(), any(), isNull()))
                 .thenReturn(new VerificarCapacidadTipoAtencion.ResultadoCapacidad(0, 1, true, false));
+    }
+
+    private void construirCasoDeUsoEn(Instant ahora) {
+        Clock clock = Clock.fixed(ahora, ZoneOffset.UTC);
+        casoDeUso = new SugerirHorariosTurnoManual(
+                tipoAtencionRepository,
+                diaAgendaRepository,
+                excepcionAgendaRepository,
+                calcularDisponibilidadDia,
+                verificadorCapacidad,
+                gestorCambioEstado,
+                evaluadorDisponibilidad,
+                clock);
     }
 
     @Test
@@ -128,9 +132,19 @@ class SugerirHorariosTurnoManualUnitTest {
 
     @Test
     void diaEnTranscursoSoloSugiereHorariosQueNoComenzaron() {
+        construirCasoDeUsoEn(Instant.parse("2026-09-10T09:15:00Z"));
         when(gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.DIA_AGENDA, 3L))
                 .thenReturn("EN_TRANSCURSO");
 
+        List<HorarioSugeridoTurnoManual> resultado = casoDeUso.ejecutar(1L, 2L, FECHA);
+
+        assertThat(resultado).extracting(HorarioSugeridoTurnoManual::horaInicio)
+                .containsExactly(LocalTime.of(9, 30));
+    }
+
+    @Test
+    void diaActivoTampocoSugiereHorariosQueYaComenzaron() {
+        construirCasoDeUsoEn(Instant.parse("2026-09-10T09:15:00Z"));
         List<HorarioSugeridoTurnoManual> resultado = casoDeUso.ejecutar(1L, 2L, FECHA);
 
         assertThat(resultado).extracting(HorarioSugeridoTurnoManual::horaInicio)

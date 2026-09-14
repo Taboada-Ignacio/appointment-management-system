@@ -98,7 +98,7 @@ public class ValidadorReprogramacionTurno {
         if (!ESTADOS_DIA_VALIDOS.contains(estadoDia)) {
             rechazar(turnoId, "el dia destino tiene estado " + estadoDia);
         }
-        if ("EN_TRANSCURSO".equals(estadoDia) && !nuevoInicio.isAfter(clock.instant())) {
+        if (!nuevoInicio.isAfter(clock.instant())) {
             rechazar(turnoId, "el horario destino ya comenzo");
         }
 

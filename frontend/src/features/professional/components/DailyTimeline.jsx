@@ -312,18 +312,24 @@ export function DailyTimeline({
       : 'Cliente';
     const selected = String(selectedAppointmentId) === String(appointment.id);
     const AppointmentElement = onSelectAppointment ? 'button' : 'div';
+    const appointmentHeight = Math.max(
+      30,
+      ((adjustedEnd - adjustedStart) / totalMinutes) * timelineHeight,
+    );
+    const compact = appointmentHeight < 40;
     return (
       <AppointmentElement
         type={onSelectAppointment ? 'button' : undefined}
         key={`appointment-${appointment.id ?? idx}`}
         onClick={onSelectAppointment ? () => onSelectAppointment(appointment) : undefined}
         aria-pressed={onSelectAppointment ? selected : undefined}
-        className={`absolute left-16 right-3 z-15 flex flex-col justify-center overflow-hidden rounded-md border px-2 text-left text-[10px] font-semibold shadow-sm transition ${selected ? 'border-primary bg-primary text-primary-foreground ring-2 ring-primary/30' : 'border-sky-600 bg-sky-100 text-sky-950 dark:bg-sky-950 dark:text-sky-100'} ${onSelectAppointment ? 'cursor-pointer hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
+        data-layout={compact ? 'compact' : 'stacked'}
+        className={`absolute left-16 right-3 z-15 flex justify-center overflow-hidden rounded-md border px-2 text-left text-[10px] font-semibold shadow-sm transition ${compact ? 'flex-row items-center gap-2 whitespace-nowrap' : 'flex-col items-start'} ${selected ? 'border-primary bg-primary text-primary-foreground ring-2 ring-primary/30' : 'border-sky-600 bg-sky-100 text-sky-950 dark:bg-sky-950 dark:text-sky-100'} ${onSelectAppointment ? 'cursor-pointer hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
         style={{ top: `${((adjustedStart - startHour * 60) / totalMinutes) * 100}%`, height: `${((adjustedEnd - adjustedStart) / totalMinutes) * 100}%`, minHeight: '30px' }}
         aria-label={`Turno asignado de ${patient}, ${formatTimeRange(appointment.horaInicio, appointment.horaFin)}`}
       >
-        <span>{formatTimeRange(appointment.horaInicio, appointment.horaFin)}</span>
-        <span className="truncate font-normal">{patient} · Asignado</span>
+        <span className="shrink-0">{formatTimeRange(appointment.horaInicio, appointment.horaFin)}</span>
+        <span className="min-w-0 truncate font-normal">{patient} · Asignado</span>
       </AppointmentElement>
     );
   });

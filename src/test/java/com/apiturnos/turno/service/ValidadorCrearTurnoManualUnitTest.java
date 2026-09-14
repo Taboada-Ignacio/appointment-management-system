@@ -197,6 +197,11 @@ class ValidadorCrearTurnoManualUnitTest {
     }
 
     @Test
+    void diaActivoRechazaHorarioQueYaComenzoAunqueElEstadoNoSeHayaActualizado() {
+        assertRechazo(solicitud(11, 0, 11, 30), MotivoRechazoTurnoManual.HORARIO_YA_INICIADO);
+    }
+
+    @Test
     void fechaAnteriorEsRechazadaConClockInyectado() {
         dia.setFecha(LocalDate.of(2026, 9, 9));
 

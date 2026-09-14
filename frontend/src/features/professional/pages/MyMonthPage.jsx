@@ -23,7 +23,7 @@ import {
 } from '../../../utils/dates';
 import { deriveTemporalStatus } from '../../../utils/status';
 import { professionalContext } from '../../../config/professional';
-import { ChevronLeft, ChevronRight, SlidersHorizontal, Calendar, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, SlidersHorizontal, Calendar, ArrowRight, CalendarPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthWheelPicker } from '@/components/ui/MonthWheelPicker';
@@ -118,12 +118,18 @@ export function MyMonthPage() {
 
   // Combine calendar day data from selectableDays + monthDetail.dias
   const combinedDays = useMemo(() => {
-    const list = monthDetail?.dias || selectableDays || [];
-    return list.map((d) => ({
-      ...d,
-      id: d.diaAgendaId || d.id,
-      estadoActual: d.estadoActual ?? d.estado,
-    }));
+    const selectableByDate = new Map((selectableDays || []).map((day) => [day.fecha, day]));
+    const monthDays = monthDetail?.dias || [];
+    const list = monthDays.length ? monthDays : (selectableDays || []);
+    return list.map((day) => {
+      const selectable = selectableByDate.get(day.fecha) || {};
+      return {
+        ...day,
+        ...selectable,
+        id: selectable.diaAgendaId || day.diaAgendaId || day.id,
+        estadoActual: day.estadoActual ?? selectable.estadoActual ?? selectable.estado,
+      };
+    });
   }, [monthDetail?.dias, selectableDays]);
 
   const selectedDayInfo = combinedDays.find(
@@ -173,11 +179,11 @@ export function MyMonthPage() {
           <div className="flex items-center gap-2">
             <Button
               type="button"
-              onClick={() => setShowConfigurator(!showConfigurator)}
-              variant={showConfigurator ? 'secondary' : 'outline'}
+              onClick={() => navigate(`/profesional/turnos/nuevo?fecha=${selectedDayInfo.fecha}&diaAgendaId=${selectedDayAgendaId}&origen=mi-mes`)}
+              disabled={!selectedDayInfo?.seleccionable}
             >
-              <SlidersHorizontal className="size-3.5 text-info" />
-              <span>{showConfigurator ? 'Ocultar configuración' : 'Configurar mes'}</span>
+              <CalendarPlus className="size-3.5" />
+              <span>Agregar turno</span>
             </Button>
 
             <div className="flex items-center gap-1">
@@ -294,6 +300,7 @@ export function MyMonthPage() {
                       day={selectedDayForTimeline}
                       timezone={timezone}
                       appointments={assignedAppointments.filter((turno) => turno.fecha === selectedDayInfo.fecha)}
+                      onSelectAppointment={(turno) => navigate(`/profesional/mi-dia?fecha=${selectedDayInfo.fecha}&turno=${turno.id ?? turno.turnoId}`)}
                       showIntegrationNotice={false}
                       onEditGaps={undefined}
                       canEdit={false}

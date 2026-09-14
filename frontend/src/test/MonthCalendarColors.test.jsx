@@ -1,9 +1,30 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { MonthCalendar } from '../features/professional/components/MonthCalendar';
 import * as dateUtils from '../utils/dates';
 
 describe('MonthCalendar color states', () => {
+  it('marca el día actual del turno y bloquea fechas sin el mismo horario disponible', () => {
+    const onSelectDay = vi.fn();
+    render(<MonthCalendar year={2027} month={2} disableUnselectable onSelectDay={onSelectDay} days={[
+      { id: 1, fecha: '2027-02-08', estadoActual: 'ACTIVO', seleccionable: false, isCurrentAppointmentDay: true },
+      { id: 2, fecha: '2027-02-09', estadoActual: 'ACTIVO', seleccionable: false, sameTimeUnavailable: true },
+      { id: 3, fecha: '2027-02-10', estadoActual: 'ACTIVO', seleccionable: true },
+    ]} />);
+
+    const current = screen.getByRole('gridcell', { name: /8 de Febrero.*Día actual del turno/i });
+    const unavailable = screen.getByRole('gridcell', { name: /9 de Febrero.*Horario original no disponible/i });
+    const available = screen.getByRole('gridcell', { name: /^10 de Febrero/i });
+    expect(current).toBeDisabled();
+    expect(current).toHaveTextContent('Actual');
+    expect(unavailable).toBeDisabled();
+    expect(unavailable).toHaveTextContent('No disponible');
+    fireEvent.click(current);
+    fireEvent.click(unavailable);
+    fireEvent.click(available);
+    expect(onSelectDay).toHaveBeenCalledTimes(1);
+  });
+
   it('applies the correct background colors for inactivo, activo, hoy, and excepcion', () => {
     // Mock today to 2027-02-10
     const todayStr = '2027-02-10';

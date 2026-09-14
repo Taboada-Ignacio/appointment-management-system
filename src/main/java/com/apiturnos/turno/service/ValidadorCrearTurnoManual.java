@@ -224,9 +224,9 @@ public class ValidadorCrearTurnoManual {
             rechazar(MotivoRechazoTurnoManual.ESTADO_DIA_NO_PERMITIDO,
                     "El día de agenda no tiene un estado seleccionable");
         }
-        if ("EN_TRANSCURSO".equals(estadoDia) && !inicioEstimado.isAfter(clock.instant())) {
+        if (!inicioEstimado.isAfter(clock.instant())) {
             rechazar(MotivoRechazoTurnoManual.HORARIO_YA_INICIADO,
-                    "En un día en curso sólo se permiten horarios que todavía no comenzaron");
+                    "Sólo se permiten horarios que todavía no comenzaron");
         }
         return estadoDia;
     }

@@ -26,6 +26,7 @@ export function MonthCalendar({
   onDoubleClickDay = null,
   loading = false,
   showAvailabilitySummary = false,
+  disableUnselectable = false,
 }) {
   const numDays = getDaysInMonth(year, month);
   const dayButtonRefs = useRef(new Map());
@@ -170,6 +171,9 @@ export function MonthCalendar({
                 String(selectedDayId) === String(cell.id) ||
                 String(selectedDayId) === String(cell.data?.id);
               const isTodayDate = isToday(cell.dateStr);
+              const isCurrentAppointmentDay = Boolean(cell.data?.isCurrentAppointmentDay);
+              const sameTimeUnavailable = Boolean(cell.data?.sameTimeUnavailable);
+              const isSelectionDisabled = disableUnselectable && cell.data?.seleccionable === false;
               const isPastDate = isPast(cell.dateStr);
               const gapCount = Number(cell.data?.cantidadBrechas ?? cell.data?.brechas?.length ?? 0);
               const appointmentCount = Number(cell.data?.cantidadTurnosAsignados ?? 0);
@@ -233,7 +237,11 @@ export function MonthCalendar({
                 : '';
 
               let dayThemeClasses;
-              if (hasExtraordinary) {
+              if (isCurrentAppointmentDay) {
+                dayThemeClasses = 'border-amber-500 bg-amber-500/15 text-foreground ring-2 ring-inset ring-amber-500/50';
+              } else if (sameTimeUnavailable) {
+                dayThemeClasses = 'bg-rose-500/10 text-muted-foreground hover:bg-rose-500/10 dark:bg-rose-950/25';
+              } else if (hasExtraordinary) {
                 // Fondo verde agua (emerald) para Habilitación Extraordinaria (prevalece sobre inactivo y ausencias)
                 dayThemeClasses = isSelected
                   ? 'border-emerald-500 bg-emerald-500/35 shadow-sm ring-2 ring-inset ring-ring z-10 text-foreground'
@@ -269,8 +277,9 @@ export function MonthCalendar({
                   onFocus={() => setFocusState({ scope: focusScope, date: cell.dateStr })}
                   onClick={() => onSelectDay?.(cell.data || { id: cell.id, fecha: cell.dateStr, empty: true })}
                   onDoubleClick={() => onDoubleClickDay?.(cell.data || { id: cell.id, fecha: cell.dateStr, empty: true })}
+                  disabled={isSelectionDisabled}
                   aria-selected={isSelected}
-                  aria-label={`${cell.dayNumber} de ${MONTH_NAMES[month - 1]} de ${year}.${accessibleStatus}${accessibleSummary}`}
+                  aria-label={`${cell.dayNumber} de ${MONTH_NAMES[month - 1]} de ${year}.${isCurrentAppointmentDay ? ' Día actual del turno.' : ''}${sameTimeUnavailable ? ' Horario original no disponible.' : ''}${accessibleStatus}${accessibleSummary}`}
                   data-status={status}
                   data-today={isTodayDate ? 'true' : 'false'}
                   data-has-exception={hasException ? 'true' : 'false'}
@@ -280,7 +289,8 @@ export function MonthCalendar({
                     'relative flex min-h-24 flex-col justify-between p-2 text-left outline-none transition-all sm:min-h-28',
                     'border-b border-r border-border/80',
                     dayThemeClasses,
-                    isPastDate && 'opacity-70'
+                    isPastDate && 'opacity-70',
+                    isSelectionDisabled && 'cursor-not-allowed opacity-60'
                   )}
                 >
                   <div className="flex w-full items-start justify-between">
@@ -305,9 +315,15 @@ export function MonthCalendar({
                         Hoy
                       </span>
                     )}
+                    {isCurrentAppointmentDay && (
+                      <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[8px] font-black uppercase text-white sm:text-[9px]">Actual</span>
+                    )}
                   </div>
 
                   <div className="mt-auto flex w-full flex-col gap-1">
+                    {sameTimeUnavailable && (
+                      <span className="max-w-full self-start rounded bg-rose-600 px-1 py-0.5 text-[7px] font-black uppercase leading-none text-white sm:text-[8px]">No disponible</span>
+                    )}
                     {hasReducedDay && (
                       <span className="max-w-full self-start whitespace-normal rounded bg-orange-500 px-1 py-0.5 text-center text-[6px] font-black uppercase leading-none tracking-tight text-white sm:text-[8px]" title="La jornada tiene una o más franjas bloqueadas">
                         Jornada reducida

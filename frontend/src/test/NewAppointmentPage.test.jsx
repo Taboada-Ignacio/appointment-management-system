@@ -4,11 +4,13 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/ToastProvider';
 import { NewAppointmentPage } from '../features/professional/pages/NewAppointmentPage';
+import { agendaKeys } from '../features/professional/hooks/useAgenda';
 import { api } from '../services/api';
 
-function renderPage() {
+function renderPage(initialEntry = '/profesional/turnos/nuevo?fecha=2030-09-10') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}><ToastProvider><MemoryRouter initialEntries={['/profesional/turnos/nuevo?fecha=2030-09-10']}><Routes><Route path="/profesional/turnos/nuevo" element={<NewAppointmentPage/>}/><Route path="/profesional/mi-dia" element={<p>Agenda actualizada</p>}/></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
+  const result = render(<QueryClientProvider client={client}><ToastProvider><MemoryRouter initialEntries={[initialEntry]}><Routes><Route path="/profesional/turnos/nuevo" element={<NewAppointmentPage/>}/><Route path="/profesional/mi-dia" element={<p>Agenda actualizada</p>}/></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
+  return { ...result, client };
 }
 
 const patient = { id: 7, nombre: 'Ana', apellido: 'Pérez', tipoDocumento: 'DNI', numeroDocumento: '30111222' };
@@ -30,6 +32,16 @@ describe('alta manual de turnos', () => {
     });
   });
 
+  it('usa el mismo selector de Nuevo turno cuando el día ya viene elegido', async () => {
+    renderPage('/profesional/turnos/nuevo?fecha=2030-09-10&diaAgendaId=5&origen=mi-dia');
+
+    expect(screen.queryByText('Seleccionar día')).not.toBeInTheDocument();
+    expect(await screen.findByLabelText('Seleccionar cliente')).toBeInTheDocument();
+    expect(await screen.findByText('Cronograma del día')).toBeInTheDocument();
+    expect(screen.getByLabelText('Horario estimado')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Volver al día' })).toBeInTheDocument();
+  });
+
   it('usa calendario mensual y combina atención, brechas, capacidad y horario en el paso 3', async () => {
     const previewResult = {
       creado: false, requiereConfirmacion: true,
@@ -39,20 +51,21 @@ describe('alta manual de turnos', () => {
     };
     const post = vi.spyOn(api, 'post').mockResolvedValueOnce(previewResult)
       .mockResolvedValueOnce(previewResult).mockResolvedValueOnce({ creado: true, turnoId: 99 });
-    renderPage();
+    const { client } = renderPage();
+    const invalidateQueries = vi.spyOn(client, 'invalidateQueries');
 
-    fireEvent.change(screen.getByLabelText('Nombre, apellido o DNI'), { target: { value: 'Ana' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Buscar' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Ana Pérez/ }));
-    expect(screen.getByLabelText('Progreso del alta').children).toHaveLength(4);
+    expect(screen.getByLabelText('Progreso del alta').children).toHaveLength(3);
     expect(screen.getByRole('combobox', { name: 'Seleccionar mes del turno' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('combobox', { name: 'Seleccionar mes del turno' }));
     expect(screen.getByRole('listbox', { name: 'Seleccionar mes del turno' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Septiembre' })).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(screen.getByRole('listbox', { name: 'Seleccionar mes del turno' }), { key: 'Escape' });
     expect(await screen.findByRole('gridcell', { name: /2 brechas horarias.*3 turnos activos/ })).toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('gridcell', { name: /10 de Septiembre de 2030/ }));
+    fireEvent.click(await screen.findByRole('gridcell', { name: /10 de Septiembre de 2030.*estado: activo/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Seleccionar día' }));
+    fireEvent.change(await screen.findByLabelText('Nombre, apellido o DNI'), { target: { value: 'Ana' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Ana Pérez/ }));
     expect(await screen.findByText('Cronograma del día')).toBeInTheDocument();
     expect(screen.queryByText('Brechas horarias')).not.toBeInTheDocument();
     expect(screen.getAllByText(/08:00.*12:00/).length).toBeGreaterThan(0);
@@ -81,9 +94,9 @@ describe('alta manual de turnos', () => {
     expect(overflowCandidate).toHaveAttribute('aria-pressed', 'false');
     expect(screen.queryByText('Consulta de turnos no disponible')).not.toBeInTheDocument();
     expect(screen.getByTestId('appointment-availability-column')).toHaveClass('lg:col-span-1');
-    fireEvent.click(screen.getByRole('button', { name: 'Volver al día' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar día' }));
     expect(await screen.findByRole('button', { name: 'Seleccionar día' })).toBeInTheDocument();
-    fireEvent.doubleClick(await screen.findByRole('gridcell', { name: /10 de Septiembre de 2030/ }));
+    fireEvent.doubleClick(await screen.findByRole('gridcell', { name: /10 de Septiembre de 2030.*estado: activo/i }));
     fireEvent.click(await screen.findByRole('button', { name: /09:00.*09:30/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Revisar avisos y confirmar' }));
 
@@ -98,6 +111,7 @@ describe('alta manual de turnos', () => {
 
     await screen.findByText('Agenda actualizada');
     expect(post).toHaveBeenLastCalledWith(expect.stringMatching(/\/turnos$/), expect.objectContaining({ tokenConfirmacion: 'confirmacion-firmada' }), expect.anything());
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: agendaKeys.assignedAppointments('2030-09-10', '2030-09-10') });
   }, 10000);
 
   it('muestra un día inactivo pero impide continuar', async () => {
@@ -108,10 +122,7 @@ describe('alta manual de turnos', () => {
       return [];
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText('Nombre, apellido o DNI'), { target: { value: '30111222' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Buscar' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Ana Pérez/ }));
-    fireEvent.click(await screen.findByRole('gridcell', { name: /10 de Septiembre de 2030/ }));
+    fireEvent.click(await screen.findByRole('gridcell', { name: /10 de Septiembre de 2030.*estado: inactivo/i }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Día inactivo');
     expect(screen.getByRole('button', { name: 'Seleccionar día' })).toBeDisabled();
   });
@@ -125,10 +136,7 @@ describe('alta manual de turnos', () => {
       return [];
     });
     renderPage();
-    fireEvent.change(screen.getByLabelText('Nombre, apellido o DNI'), { target: { value: 'Ana' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Buscar' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Ana Pérez/ }));
-    fireEvent.doubleClick(await screen.findByRole('gridcell', { name: /10 de Septiembre de 2030/ }));
+    fireEvent.doubleClick(await screen.findByRole('gridcell', { name: /10 de Septiembre de 2030.*estado: activo/i }));
 
     expect(await screen.findByText('No hay configuración profesional')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Revisar avisos y confirmar' })).toBeDisabled();
@@ -137,10 +145,10 @@ describe('alta manual de turnos', () => {
   it('al modificar el horario invalida la prevalidación anterior', async () => {
     vi.spyOn(api, 'post').mockResolvedValue({ creado: false, tokenConfirmacion: 'token', advertencias: [], cliente: patient, tipoAtencion: { nombre: 'Consulta' } });
     renderPage();
-    fireEvent.change(screen.getByLabelText('Nombre, apellido o DNI'), { target: { value: 'Ana' } });
+    fireEvent.doubleClick(await screen.findByRole('gridcell', { name: /10 de Septiembre de 2030.*estado: activo/i }));
+    fireEvent.change(await screen.findByLabelText('Nombre, apellido o DNI'), { target: { value: 'Ana' } });
     fireEvent.click(screen.getByRole('button', { name: 'Buscar' }));
     fireEvent.click(await screen.findByRole('button', { name: /Ana Pérez/ }));
-    fireEvent.doubleClick(await screen.findByRole('gridcell', { name: /10 de Septiembre de 2030/ }));
     fireEvent.click(await screen.findByRole('button', { name: /09:00.*09:30/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Revisar avisos y confirmar' }));
     await screen.findByText('Confirmar turno');

@@ -201,6 +201,34 @@ describe('DailyTimeline Component', () => {
     expect(onSelectAppointment).toHaveBeenCalledWith(expect.objectContaining({ id: 44 }));
   });
 
+  it('acomoda horario y cliente según la altura disponible del turno y el zoom', () => {
+    const appointment = {
+      id: 45,
+      inicioEstimado: '2026-09-15T19:00:00Z',
+      finEstimado: '2026-09-15T19:15:00Z',
+      cliente: { nombre: 'Cliente', apellido: 'con datos' },
+    };
+    const day = {
+      fecha: '2026-09-15',
+      estadoActual: 'ACTIVO',
+      brechas: [{ horaInicio: '15:00', horaFin: '17:00' }],
+    };
+
+    const { rerender } = render(
+      <DailyTimeline day={day} timezone="America/Argentina/Buenos_Aires" appointments={[appointment]} zoom={100} />
+    );
+
+    expect(screen.getByLabelText(/Turno asignado de Cliente con datos/))
+      .toHaveAttribute('data-layout', 'compact');
+
+    rerender(
+      <DailyTimeline day={day} timezone="America/Argentina/Buenos_Aires" appointments={[appointment]} zoom={300} />
+    );
+
+    expect(screen.getByLabelText(/Turno asignado de Cliente con datos/))
+      .toHaveAttribute('data-layout', 'stacked');
+  });
+
   it('deselects an appointment when the selected one is clicked again', () => {
     const appointment = {
       id: 44,

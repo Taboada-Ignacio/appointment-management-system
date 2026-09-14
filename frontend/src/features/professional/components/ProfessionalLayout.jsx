@@ -1,10 +1,11 @@
-import { LoaderCircle, Menu, ShieldCheck } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { LoaderCircle, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { professionalContext } from '@/config/professional';
+import { cn } from '@/lib/utils';
 import { useAgendaMonth, useAnnualAgendas } from '../hooks/useAgenda';
 import { useProfessionalConfig } from '../hooks/useProfessionalConfig';
 import { useAffectedAppointments } from '../hooks/useAbsences';
@@ -27,8 +28,20 @@ function zonedYearMonth() {
 
 export function ProfessionalLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const menuButtonRef = useRef(null);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setIsCollapsed((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const current = useMemo(() => zonedYearMonth(), []);
   const agendaState = useAgendaMonth(current.year, current.month);
@@ -89,9 +102,14 @@ export function ProfessionalLayout() {
         hasAnnualAgenda={Boolean(agendaState.agenda)}
         returnFocusRef={menuButtonRef}
         pendingAffectedCount={pendingAffectedCount}
+        isCollapsed={isCollapsed}
+        onToggleCollapse={() => setIsCollapsed((prev) => !prev)}
+        onNavigate={() => {
+          setIsCollapsed(true);
+        }}
       />
 
-      <div className="lg:pl-72">
+      <div className={cn('transition-[padding] duration-200 ease-in-out', isCollapsed ? 'lg:pl-20' : 'lg:pl-72')}>
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/92 px-4 backdrop-blur-md sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <Button
@@ -107,7 +125,22 @@ export function ProfessionalLayout() {
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <Separator orientation="vertical" className="hidden h-6 lg:block" />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="hidden lg:flex"
+              onClick={() => setIsCollapsed((prev) => !prev)}
+              aria-label={isCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}
+              title={isCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}
+            >
+              {isCollapsed ? (
+                <PanelLeftOpen className="h-5 w-5" />
+              ) : (
+                <PanelLeftClose className="h-5 w-5" />
+              )}
+            </Button>
+            <Separator orientation="vertical" className="hidden h-6 sm:block" />
             <div>
               <p className="font-heading text-sm font-semibold tracking-tight sm:text-base">Centro de agenda</p>
               <p className="hidden text-[10px] font-bold uppercase tracking-[0.11em] text-muted-foreground sm:block">Hora oficial · {professionalContext.timezone}</p>

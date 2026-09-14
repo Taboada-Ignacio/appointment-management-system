@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { es } from 'date-fns/locale';
 import { PageHeader } from '../components/PageHeader';
 import { DailyTimeline } from '../components/DailyTimeline';
 import { GapEditor } from '../components/GapEditor';
@@ -23,8 +24,10 @@ import { deriveTemporalStatus } from '../../../utils/status';
 import { professionalContext } from '../../../config/professional';
 import { AlertTriangle, Calendar, CheckCircle2, ChevronLeft, ChevronRight, Save, X, CalendarClock, CalendarPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Calendar as DateCalendar } from '@/components/ui/calendar';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -42,6 +45,7 @@ export function MyDayPage() {
   const [editingGaps, setEditingGaps] = useState([]);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(() => searchParams.get('turno'));
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const { success, error: showError } = useToast();
 
   const { year, month } = parseDateString(dateStr);
@@ -86,6 +90,20 @@ export function MyDayPage() {
   const handleToday = () => {
     setSearchParams({ fecha: today });
     setIsEditing(false);
+    setDatePickerOpen(false);
+  };
+
+  const handleSelectDate = (date) => {
+    if (!date) return;
+    const selectedDate = [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0'),
+    ].join('-');
+    setSearchParams({ fecha: selectedDate });
+    setIsEditing(false);
+    setSelectedAppointmentId(null);
+    setDatePickerOpen(false);
   };
 
   const handleStartEditing = (dayToEdit) => {
@@ -190,7 +208,7 @@ export function MyDayPage() {
         description={formatDateLong(dateStr, timezone)}
         status={<StatusBadge status={temporalStatus} />}
         actions={
-          <div className="flex items-center gap-2"><Button type="button" onClick={() => navigate(`/profesional/turnos/nuevo?fecha=${dateStr}`)}><CalendarPlus/>Nuevo turno</Button><div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-xs">
+          <div className="flex items-center gap-2"><Button type="button" disabled={!dayId || !dayInfo?.seleccionable} onClick={() => navigate(`/profesional/turnos/nuevo?fecha=${dateStr}&diaAgendaId=${dayId}&origen=mi-dia`)}><CalendarPlus/>Nuevo turno</Button><div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-xs">
             <Button
               type="button"
               variant="ghost"
@@ -201,14 +219,30 @@ export function MyDayPage() {
               <ChevronLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Anterior</span>
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleToday}
-            >
-              Hoy
-            </Button>
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="sm" aria-label="Elegir otro día">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Hoy
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="center" className="w-auto p-0">
+                <DateCalendar
+                  mode="single"
+                  selected={new Date(year, month - 1, parseDateString(dateStr).day)}
+                  defaultMonth={new Date(year, month - 1, 1)}
+                  onSelect={handleSelectDate}
+                  locale={es}
+                  weekStartsOn={1}
+                  autoFocus
+                />
+                <div className="border-t p-2">
+                  <Button type="button" variant="ghost" size="sm" className="w-full" onClick={handleToday}>
+                    Ir a hoy
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button
               type="button"
               variant="ghost"

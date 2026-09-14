@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { createRoutes } from '../app/router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../components/ui/ToastProvider';
+import { TooltipProvider } from '../components/ui/tooltip';
 
 const mockConfig = {
   id: 1,
@@ -40,9 +41,11 @@ function renderWithRouter(initialEntries = ['/'], config = mockConfig, agendas =
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <RouterProvider router={router} />
-      </ToastProvider>
+      <TooltipProvider>
+        <ToastProvider>
+          <RouterProvider router={router} />
+        </ToastProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }
@@ -114,4 +117,56 @@ describe('Routing & Shell Navigation', () => {
     expect(screen.getByRole('heading', { name: /Página no encontrada/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Volver a Mi Día/i })).toBeInTheDocument();
   });
+
+  it('contrae la barra lateral al seleccionar un enlace de navegación', async () => {
+    const user = userEvent.setup();
+    renderWithRouter(['/profesional/mi-dia']);
+
+    const desktopToggle = screen.getByRole('button', { name: 'Contraer barra lateral' });
+    expect(desktopToggle).toBeInTheDocument();
+
+    const miMesLink = screen.getByRole('link', { name: /Mi mes/i });
+    await user.click(miMesLink);
+
+    expect(await screen.findByRole('heading', { name: /Mi mes/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expandir barra lateral' })).toBeInTheDocument();
+  });
+
+  it('permite expandir y contraer manualmente la barra lateral con el botón del encabezado', async () => {
+    const user = userEvent.setup();
+    renderWithRouter(['/profesional/mi-dia']);
+
+    const collapseButton = screen.getByRole('button', { name: 'Contraer barra lateral' });
+    await user.click(collapseButton);
+
+    const expandButton = screen.getByRole('button', { name: 'Expandir barra lateral' });
+    expect(expandButton).toBeInTheDocument();
+
+    await user.click(expandButton);
+    expect(screen.getByRole('button', { name: 'Contraer barra lateral' })).toBeInTheDocument();
+  });
+
+  it('permite contraer la barra lateral usando el botón en el pie del menú', async () => {
+    const user = userEvent.setup();
+    renderWithRouter(['/profesional/mi-dia']);
+
+    const footerButton = screen.getByRole('button', { name: 'Contraer menú lateral' });
+    await user.click(footerButton);
+
+    expect(screen.getByRole('button', { name: 'Expandir barra lateral' })).toBeInTheDocument();
+  });
+
+  it('permite alternar el estado de la barra lateral con el atajo de teclado Ctrl+B', async () => {
+    const user = userEvent.setup();
+    renderWithRouter(['/profesional/mi-dia']);
+
+    expect(screen.getByRole('button', { name: 'Contraer barra lateral' })).toBeInTheDocument();
+
+    await user.keyboard('{Control>}b{/Control}');
+    expect(screen.getByRole('button', { name: 'Expandir barra lateral' })).toBeInTheDocument();
+
+    await user.keyboard('{Control>}b{/Control}');
+    expect(screen.getByRole('button', { name: 'Contraer barra lateral' })).toBeInTheDocument();
+  });
 });
+

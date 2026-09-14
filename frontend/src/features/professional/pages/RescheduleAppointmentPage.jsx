@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
@@ -51,6 +51,7 @@ function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack
   const [observation, setObservation] = useState('');
   const [showTimeline, setShowTimeline] = useState(false);
   const [message, setMessage] = useState('');
+  const [availabilityByDate, setAvailabilityByDate] = useState({});
   const validationSequence = useRef(0);
   const { firstDay, lastDay } = getMonthRange(view.year, view.month);
   const { data: days = [], isLoading: loadingDays } = useSelectableDays(firstDay, lastDay);
@@ -58,7 +59,43 @@ function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack
   const endTime = instantTimeLabel(appointment.finEstimado, timezone);
   const { data: selectedDayDetail } = useDayDetail(showTimeline ? selectedDay?.diaAgendaId ?? selectedDay?.id : null);
   const { data: selectedDayAppointments = [] } = useAssignedAppointments(showTimeline ? selectedDay?.fecha : null, showTimeline ? selectedDay?.fecha : null);
-  const recommendedDays = days.filter((day) => day.seleccionable && day.fecha !== appointment.fecha).sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 3);
+  useEffect(() => {
+    let cancelled = false;
+    const candidates = days.filter((day) => day.seleccionable && day.fecha !== appointment.fecha);
+    setAvailabilityByDate(Object.fromEntries(candidates.map((day) => [day.fecha, 'checking'])));
+    Promise.all(candidates.map(async (day) => {
+      try {
+        await validateAppointmentReschedule(appointment.id ?? appointment.turnoId, {
+          motivo: 'Validación previa',
+          nuevoDiaAgendaId: day.diaAgendaId ?? day.id,
+          nuevoInicio: localToInstant(day.fecha, startTime),
+          nuevoFin: localToInstant(day.fecha, endTime),
+        });
+        return [day.fecha, 'available'];
+      } catch {
+        return [day.fecha, 'unavailable'];
+      }
+    })).then((entries) => {
+      if (!cancelled) setAvailabilityByDate(Object.fromEntries(entries));
+    });
+    return () => { cancelled = true; };
+  }, [appointment.id, appointment.turnoId, appointment.fecha, days, endTime, startTime]);
+
+  const calendarDays = days.map((day) => {
+    const isCurrentAppointmentDay = day.fecha === appointment.fecha;
+    const scheduleAvailability = availabilityByDate[day.fecha];
+    const sameTimeUnavailable = !isCurrentAppointmentDay && (!day.seleccionable || scheduleAvailability === 'unavailable');
+    return {
+      ...day,
+      id: day.diaAgendaId ?? day.id,
+      estadoActual: day.estadoActual ?? day.estado,
+      isCurrentAppointmentDay,
+      sameTimeUnavailable,
+      seleccionable: !isCurrentAppointmentDay && day.seleccionable && scheduleAvailability === 'available',
+      mensaje: isCurrentAppointmentDay ? 'Este es el día actual del turno.' : sameTimeUnavailable ? `El horario ${startTime}–${endTime} no está disponible.` : day.mensaje,
+    };
+  });
+  const recommendedDays = calendarDays.filter((day) => day.seleccionable).sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 3);
 
   const changeMonth = (direction) => {
     setView((current) => {
@@ -122,7 +159,7 @@ function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack
         <CardContent className="space-y-5">
           {step === 1 ? <>
             <div className="flex items-center justify-between gap-3"><Button size="icon" variant="outline" aria-label="Mes anterior para reprogramar" onClick={() => changeMonth(-1)}><ChevronLeft /></Button><strong>{view.month}/{view.year}</strong><Button size="icon" variant="outline" aria-label="Mes siguiente para reprogramar" onClick={() => changeMonth(1)}><ChevronRight /></Button></div>
-            <div className="[&_[role=gridcell]]:min-h-20"><MonthCalendar year={view.year} month={view.month} days={days.map((day) => ({ ...day, id: day.diaAgendaId ?? day.id, estadoActual: day.estadoActual ?? day.estado }))} selectedDayId={selectedDay?.diaAgendaId ?? selectedDay?.id} onSelectDay={chooseDay} loading={loadingDays} showAvailabilitySummary /></div>
+            <div className="[&_[role=gridcell]]:min-h-20"><MonthCalendar year={view.year} month={view.month} days={calendarDays} selectedDayId={selectedDay?.diaAgendaId ?? selectedDay?.id} onSelectDay={chooseDay} loading={loadingDays} showAvailabilitySummary disableUnselectable /></div>
             {recommendedDays.length > 0 && <div><p className="mb-2 font-semibold">Próximos días disponibles</p><div className="flex flex-wrap gap-2">{recommendedDays.map((day) => <Button key={day.fecha} size="sm" variant="outline" onClick={() => chooseDay(day)}>{formatDateLong(day.fecha, timezone)}</Button>)}</div></div>}
             {validationState === 'checking' && <p role="status" className="text-muted-foreground">Comprobando el horario original…</p>}
             {validationState === 'available' && <Alert className="border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30"><CheckCircle2 /><AlertTitle>Horario disponible</AlertTitle><AlertDescription>Se puede conservar {startTime}–{endTime}.</AlertDescription></Alert>}

@@ -130,7 +130,7 @@ public class SugerirHorariosTurnoManual {
                     Instant inicioInstant = fecha.atTime(inicio).atZone(clock.getZone()).toInstant();
                     Instant finInstant = fecha.atTime(fin).atZone(clock.getZone()).toInstant();
 
-                    if (!"EN_TRANSCURSO".equals(estadoDia) || inicioInstant.isAfter(clock.instant())) {
+                    if (inicioInstant.isAfter(clock.instant())) {
                         VerificarCapacidadTipoAtencion.ResultadoCapacidad capacidad = tipo != null
                                 ? verificadorCapacidad.evaluar(tipo, inicioInstant, finInstant, null)
                                 : verificadorCapacidad.evaluarConfiguracion(profesionalId, fecha,
