@@ -33,17 +33,15 @@ import {
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TimeWheelPicker } from '@/components/ui/TimeWheelPicker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/ToastProvider';
-import { useSelectableDays } from '../hooks/useAgenda';
-import { useAbsences, useAffectedAppointments, useCancelAbsence, useResolveAffectedBulkCancellation, useResolveAffectedCancellation, useResolveAffectedReschedule } from '../hooks/useAbsences';
+import { useAbsences, useAffectedAppointments, useCancelAbsence, useResolveAffectedBulkCancellation, useResolveAffectedCancellation } from '../hooks/useAbsences';
 import { TYPE_LABELS } from '../utils/exceptionLabels';
 
-const RESOLUTION_LABELS = { PENDIENTE: 'Pendiente', DADO_DE_BAJA: 'Dado de baja', REPROGRAMADO: 'Reprogramado' };
+const RESOLUTION_LABELS = { PENDIENTE: 'Pendiente', DADO_DE_BAJA: 'Dado de baja', REPROGRAMADO: 'Reprogramado', RESTAURADO: 'Restaurado' };
 const PAGE_SIZES = [10, 20, 50];
 const dateLabel = (value) => value ? new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium' }).format(new Date(`${value}T12:00:00`)) : '—';
 const timeLabel = (value) => value ? new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—';
@@ -931,7 +929,7 @@ export function ExceptionsPanel({ onRegister }) {
         open={Boolean(cancelTarget)}
         onOpenChange={open => !open && setCancelTarget(null)}
         title="Cancelar excepción"
-        description="La excepción quedará cancelada. Los turnos dados de baja no se reactivarán automáticamente."
+        description="La excepción quedará cancelada y los turnos pendientes volverán a su estado anterior. Los turnos dados de baja no se reactivarán."
         confirmLabel="Confirmar cancelación"
         variant="destructive"
         onConfirm={doCancel}
@@ -947,67 +945,21 @@ export function AffectedAppointmentsPanel() {
   const query = useAffectedAppointments();
   const cancelOne = useResolveAffectedCancellation();
   const cancelMany = useResolveAffectedBulkCancellation();
-  const reprogram = useResolveAffectedReschedule();
   const [search,setSearch]=useState(''); const [resolution,setResolution]=useState('PENDIENTE'); const [type,setType]=useState('TODOS');
-  const [range,setRange]=useState({start:'',end:''}); const [page,setPage]=useState(1); const [size,setSize]=useState(20); const [selected,setSelected]=useState(null); const [checked,setChecked]=useState([]); const [cancelTarget,setCancelTarget]=useState(null); const [rescheduleTarget,setRescheduleTarget]=useState(null);
+  const [range,setRange]=useState({start:'',end:''}); const [page,setPage]=useState(1); const [size,setSize]=useState(20); const [selected,setSelected]=useState(null); const [checked,setChecked]=useState([]); const [cancelTarget,setCancelTarget]=useState(null);
   const exceptionFilter = searchParams.get('excepcion');
   const filtered=useMemo(()=>(query.data||[]).filter(item=>{const text=`${item.turnoId} ${item.excepcionId} ${item.nombreCliente} ${item.telefono}`.toLowerCase();return(!exceptionFilter||String(item.excepcionId)===exceptionFilter)&&(!search||text.includes(search.toLowerCase()))&&(resolution==='TODOS'||item.resolucion===resolution)&&(type==='TODOS'||item.tipoExcepcion===type)&&(!range.start||item.fechaOriginal>=range.start)&&(!range.end||item.fechaOriginal<=range.end);}).sort((a,b)=>(a.resolucion==='PENDIENTE'?0:1)-(b.resolucion==='PENDIENTE'?0:1)||a.fechaOriginal.localeCompare(b.fechaOriginal)),[exceptionFilter,query.data,range,resolution,search,type]);
   const rows=filtered.slice((page-1)*size,page*size); const pending=(query.data||[]).filter(x=>x.resolucion==='PENDIENTE').length; const low=(query.data||[]).filter(x=>x.resolucion==='DADO_DE_BAJA').length; const moved=(query.data||[]).filter(x=>x.resolucion==='REPROGRAMADO').length;
+  const selectableIds=filtered.filter(item=>item.resolucion==='PENDIENTE').map(item=>item.afectacionId);
+  const allSelected=selectableIds.length>0&&selectableIds.every(id=>checked.includes(id));
+  const toggleAll=()=>setChecked(current=>allSelected?current.filter(id=>!selectableIds.includes(id)):[...new Set([...current,...selectableIds])]);
   const doCancel=async()=>{try{if(cancelTarget==='bulk'){await cancelMany.mutateAsync({ids:checked,observacion:'Resolución masiva desde Turnos afectados'});setChecked([]);}else await cancelOne.mutateAsync({id:cancelTarget.afectacionId,observacion:''});success('Resolución completada','Los turnos fueron dados de baja y se generaron las notificaciones correspondientes.');setCancelTarget(null);setSelected(null);}catch(e){error('No se pudo resolver',e.message);}};
-  const doReschedule=async value=>{try{await reprogram.mutateAsync({id:rescheduleTarget.afectacionId,nuevoDiaAgendaId:Number(value.diaAgendaId),nuevoInicio:localToInstant(value.fecha,value.horaInicio),nuevoFin:localToInstant(value.fecha,value.horaFin),observacion:value.observacion});success('Turno reprogramado','El cambio quedó registrado y se generó la notificación.');setRescheduleTarget(null);setSelected(null);}catch(e){error('No se pudo reprogramar',e.message);}};
   return <div className="space-y-4">{exceptionFilter&&<div className="flex items-center justify-between rounded-xl border border-info/30 bg-info/10 p-3"><span className="text-sm font-semibold">Filtrando por la excepción #{exceptionFilter}</span><Button variant="ghost" size="sm" onClick={()=>navigate('/profesional/turnos-afectados')}>Quitar filtro</Button></div>}<div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-4"><Metric label="Total" value={(query.data||[]).length}/><Metric label="Pendientes" value={pending}/><Metric label="Dados de baja" value={low}/><Metric label="Reprogramados" value={moved}/></div><div className="grid gap-3 rounded-xl border bg-card p-4 lg:grid-cols-[1fr_170px_220px_2fr_auto]"><Input placeholder="Paciente, teléfono, turno o excepción" value={search} onChange={e=>setSearch(e.target.value)}/><Select value={resolution} onValueChange={setResolution}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{['TODOS','PENDIENTE','DADO_DE_BAJA','REPROGRAMADO'].map(v=><SelectItem key={v} value={v}>{RESOLUTION_LABELS[v]||'Todas'}</SelectItem>)}</SelectContent></Select><Select value={type} onValueChange={setType}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="TODOS">Todos los tipos</SelectItem>{Object.entries(TYPE_LABELS).map(([v,l])=><SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select><DateRangePickerField start={range.start} end={range.end} onChange={(start,end)=>setRange({start,end})}/><Button variant="outline" onClick={()=>query.refetch()}><RefreshCw/>Actualizar</Button></div>
-  {checked.length>0&&<div className="flex items-center justify-between rounded-xl border border-warning/30 bg-warning/10 p-3"><span className="text-sm font-semibold">{checked.length} pendientes seleccionados</span><Button variant="destructive" size="sm" onClick={()=>setCancelTarget('bulk')}><UserRoundX/>Dar de baja seleccionados</Button></div>}
+  {selectableIds.length>0&&<div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3"><div className="flex items-center gap-3"><Button variant="outline" size="sm" onClick={toggleAll}>{allSelected?'Deseleccionar todos':'Seleccionar todos'}</Button><span className="text-sm font-semibold">{checked.length} pendientes seleccionados</span></div>{checked.length>0&&<Button variant="destructive" size="sm" onClick={()=>setCancelTarget('bulk')}><UserRoundX/>Dar de baja seleccionados</Button>}</div>}
   {!query.isLoading&&!filtered.length?<EmptyState icon={CheckCircle2} title="No hay turnos afectados para estos filtros" description="Los pendientes aparecerán aquí cuando una excepción alcance turnos existentes."/>:<Card><CardContent className="space-y-4 p-4"><div className="hidden lg:block"><Table><TableHeader><TableRow><TableHead className="w-10"></TableHead><TableHead>Paciente</TableHead><TableHead>Fecha y hora original</TableHead><TableHead>Excepción</TableHead><TableHead>Estado</TableHead><TableHead>Resolución</TableHead><TableHead></TableHead></TableRow></TableHeader><TableBody>{rows.map(item=><TableRow key={item.afectacionId}><TableCell>{item.resolucion==='PENDIENTE'&&<input type="checkbox" aria-label={`Seleccionar turno ${item.turnoId}`} checked={checked.includes(item.afectacionId)} onChange={()=>setChecked(v=>v.includes(item.afectacionId)?v.filter(id=>id!==item.afectacionId):[...v,item.afectacionId])}/>}</TableCell><TableCell><strong>{item.nombreCliente}</strong><span className="block text-xs text-muted-foreground">{item.telefono||'Contacto manual'}</span></TableCell><TableCell>{dateLabel(item.fechaOriginal)}<span className="block text-xs text-muted-foreground">{timeLabel(item.inicioOriginal)}–{timeLabel(item.finOriginal)}</span></TableCell><TableCell><TypeBadge tipo={item.tipoExcepcion} /><span className="block text-xs">#{item.excepcionId}</span></TableCell><TableCell>{item.estadoTurnoAnterior||'—'} → {item.estadoTurno||'—'}</TableCell><TableCell><Badge>{RESOLUTION_LABELS[item.resolucion]||item.resolucion}</Badge></TableCell><TableCell><Button size="sm" variant="ghost" onClick={()=>setSelected(item)}><Eye/>Ver</Button></TableCell></TableRow>)}</TableBody></Table></div><div className="grid gap-3 lg:hidden">{rows.map(item=><button key={item.afectacionId} onClick={()=>setSelected(item)} className="rounded-xl border p-4 text-left"><div className="flex justify-between"><strong>{item.nombreCliente}</strong><Badge>{RESOLUTION_LABELS[item.resolucion]}</Badge></div><span className="mt-2 block text-xs">{dateLabel(item.fechaOriginal)} · {timeLabel(item.inicioOriginal)}</span><span className="mt-1 block text-xs text-muted-foreground">{TYPE_LABELS[item.tipoExcepcion]}</span></button>)}</div><Pager page={page} setPage={setPage} total={filtered.length} size={size} setSize={setSize}/></CardContent></Card>}
-  <Sheet open={Boolean(selected)} onOpenChange={open=>!open&&setSelected(null)}><SheetContent className="w-full overflow-y-auto sm:max-w-xl"><SheetHeader><SheetTitle>Turno afectado #{selected?.turnoId}</SheetTitle><SheetDescription>Origen, estado y resolución del impacto.</SheetDescription></SheetHeader>{selected&&<div className="space-y-4 px-4"><Detail label="Paciente" value={`${selected.nombreCliente} · ${selected.telefono||'Contacto manual'}`}/><Detail label="Excepción" value={`#${selected.excepcionId} · ${TYPE_LABELS[selected.tipoExcepcion]} · ${selected.motivoExcepcion}`}/><Detail label="Horario original" value={`${dateLabel(selected.fechaOriginal)} · ${timeLabel(selected.inicioOriginal)}–${timeLabel(selected.finOriginal)}`}/><Detail label="Estado" value={`${selected.estadoTurnoAnterior||'—'} → ${selected.estadoTurno||'—'}`}/>{selected.resolucion==='REPROGRAMADO'&&<Detail label="Nuevo horario" value={`${dateLabel(selected.fechaActual)} · ${timeLabel(selected.inicioActual)}–${timeLabel(selected.finActual)}`}/>}<Detail label="Resolución" value={RESOLUTION_LABELS[selected.resolucion]}/><Detail label="Notificación" value={selected.telefono?'WhatsApp generado al resolver':'Requiere contacto manual'}/>{selected.resolucion==='PENDIENTE'&&<div className="flex gap-2 border-t pt-4"><Button variant="destructive" onClick={()=>setCancelTarget(selected)}>Dar de baja</Button><Button onClick={()=>setRescheduleTarget(selected)}><Clock3/>Reprogramar</Button></div>}</div>}</SheetContent></Sheet>
-  <ConfirmDialog open={Boolean(cancelTarget)} onOpenChange={open=>!open&&setCancelTarget(null)} title="Confirmar baja" description={cancelTarget==='bulk'?`Se darán de baja ${checked.length} turnos, se registrará el historial y se generarán las notificaciones.`:'El turno será dado de baja, con historial y notificación asociada.'} confirmLabel="Dar de baja" variant="destructive" onConfirm={doCancel}/><AffectedRescheduleDialog item={rescheduleTarget} onClose={()=>setRescheduleTarget(null)} onConfirm={doReschedule}/></div>;
+  <Sheet open={Boolean(selected)} onOpenChange={open=>!open&&setSelected(null)}><SheetContent className="w-full overflow-y-auto sm:max-w-xl"><SheetHeader><SheetTitle>Turno afectado #{selected?.turnoId}</SheetTitle><SheetDescription>Origen, estado y resolución del impacto.</SheetDescription></SheetHeader>{selected&&<div className="space-y-4 px-4"><Detail label="Paciente" value={`${selected.nombreCliente} · ${selected.telefono||'Contacto manual'}`}/><Detail label="Excepción" value={`#${selected.excepcionId} · ${TYPE_LABELS[selected.tipoExcepcion]} · ${selected.motivoExcepcion}`}/><Detail label="Horario original" value={`${dateLabel(selected.fechaOriginal)} · ${timeLabel(selected.inicioOriginal)}–${timeLabel(selected.finOriginal)}`}/><Detail label="Estado" value={`${selected.estadoTurnoAnterior||'—'} → ${selected.estadoTurno||'—'}`}/>{selected.resolucion==='REPROGRAMADO'&&<Detail label="Nuevo horario" value={`${dateLabel(selected.fechaActual)} · ${timeLabel(selected.inicioActual)}–${timeLabel(selected.finActual)}`}/>}<Detail label="Resolución" value={RESOLUTION_LABELS[selected.resolucion]}/><Detail label="Notificación" value={selected.telefono?'WhatsApp generado al resolver':'Requiere contacto manual'}/>{selected.resolucion==='PENDIENTE'&&<div className="flex flex-wrap gap-2 border-t pt-4"><Button variant="destructive" onClick={()=>setCancelTarget(selected)}>Dar de baja</Button><Button variant="outline" onClick={()=>navigate(`/profesional/turnos/${selected.turnoId}/cambiar-dia?fecha=${selected.fechaActual || selected.fechaOriginal}&afectacionId=${selected.afectacionId}`)}>Cambiar día</Button><Button onClick={()=>navigate(`/profesional/turnos/${selected.turnoId}/reprogramar?fecha=${selected.fechaActual || selected.fechaOriginal}&afectacionId=${selected.afectacionId}`)}>Reprogramar turno</Button></div>}</div>}</SheetContent></Sheet>
+  <ConfirmDialog open={Boolean(cancelTarget)} onOpenChange={open=>!open&&setCancelTarget(null)} title="Confirmar baja" description={cancelTarget==='bulk'?`Se darán de baja ${checked.length} turnos, se registrará el historial y se generarán las notificaciones.`:'El turno será dado de baja, con historial y notificación asociada.'} confirmLabel="Dar de baja" variant="destructive" onConfirm={doCancel}/></div>;
 }
 
-function AffectedRescheduleDialog({item,onClose,onConfirm}) {
-  const [form,setForm]=useState({fecha:'',horaInicio:'',horaFin:'',observacion:''});
-  const {data:days}=useSelectableDays(form.fecha,form.fecha);
-  const day=days?.find(d=>d.fecha===form.fecha&&d.seleccionable);
-  const valid=day&&form.horaInicio<form.horaFin;
-  return (
-    <ConfirmDialog
-      open={Boolean(item)}
-      onOpenChange={open=>!open&&onClose()}
-      title="Reprogramar turno afectado"
-      description="Solo se aceptará un día habilitado con disponibilidad y capacidad."
-      confirmLabel="Confirmar reprogramación"
-      confirmDisabled={!valid}
-      onConfirm={()=>onConfirm({...form,diaAgendaId:day?.diaAgendaId})}
-    >
-      <div className="grid gap-3 py-2 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Label>Fecha</Label>
-          <Input type="date" value={form.fecha} onChange={e=>setForm({...form,fecha:e.target.value})}/>
-        </div>
-        <div>
-          <Label>Desde</Label>
-          <TimeWheelPicker
-            value={form.horaInicio}
-            onChange={val=>setForm({...form,horaInicio:val})}
-            minuteStep={15}
-            aria-label="Hora desde"
-          />
-        </div>
-        <div>
-          <Label>Hasta</Label>
-          <TimeWheelPicker
-            value={form.horaFin}
-            onChange={val=>setForm({...form,horaFin:val})}
-            minuteStep={15}
-            aria-label="Hora hasta"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <Label>Observación</Label>
-          <Textarea value={form.observacion} onChange={e=>setForm({...form,observacion:e.target.value})}/>
-        </div>
-      </div>
-    </ConfirmDialog>
-  );
-}
 function Detail({label,value}) { return <div><span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span><p className="mt-1 leading-6">{value||'—'}</p></div>; }
 function Metric({label,value}) { return <Card><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">{label}</CardTitle></CardHeader><CardContent><strong className="text-2xl">{value}</strong></CardContent></Card>; }
-function localToInstant(date,time){return new Date(`${date}T${time}:00`).toISOString();}

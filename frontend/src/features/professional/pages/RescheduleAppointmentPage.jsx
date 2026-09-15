@@ -5,6 +5,8 @@ import { PageHeader } from '../components/PageHeader';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { DailyTimeline } from '../components/DailyTimeline';
 import { useAssignedAppointments, useDayDetail, useRescheduleAppointment, useSelectableDays } from '../hooks/useAgenda';
+import { useAffectedAppointments, useResolveAffectedReschedule } from '../hooks/useAbsences';
+import { affectedAppointmentToAppointment } from '../utils/affectedAppointmentAdapter';
 import { validateAppointmentReschedule } from '../api/agendaApi';
 import { listSuggestedTimes } from '../api/appointmentApi';
 import { professionalContext } from '../../../config/professional';
@@ -23,20 +25,37 @@ export function RescheduleAppointmentPage() {
   const { success } = useToast();
   const timezone = professionalContext.timezone;
   const originalDate = searchParams.get('fecha');
+  const affectedAppointmentId = searchParams.get('afectacionId');
   const { data: appointments = [], isLoading } = useAssignedAppointments(originalDate, originalDate);
-  const appointment = appointments.find((item) => String(item.id ?? item.turnoId) === String(appointmentId));
+  const { data: affectedAppointments = [], isLoading: affectedLoading } = useAffectedAppointments();
+  const affectedAppointment = affectedAppointmentId
+    ? affectedAppointments.find((item) => String(item.afectacionId) === String(affectedAppointmentId))
+    : null;
+  const appointment = affectedAppointmentToAppointment(affectedAppointment)
+    || appointments.find((item) => String(item.id ?? item.turnoId) === String(appointmentId));
   const reschedule = useRescheduleAppointment();
+  const resolveAffected = useResolveAffectedReschedule();
 
-  if (isLoading) return <div className="rounded-xl border bg-card p-8 text-sm text-muted-foreground">Cargando turno…</div>;
-  if (!appointment) return <EmptyState title="No se encontró el turno" description="El turno ya no está asignado o la fecha original no es válida." action={{ label: 'Volver a Mi día', onClick: () => navigate(`/profesional/mi-dia${originalDate ? `?fecha=${originalDate}` : ''}`) }} />;
+  if (isLoading || (affectedAppointmentId && affectedLoading)) return <div className="rounded-xl border bg-card p-8 text-sm text-muted-foreground">Cargando turno…</div>;
+  if (!appointment) return <EmptyState title="No se encontró el turno" description="No pudimos recuperar los datos del turno o de su afectación." action={{ label: 'Volver a Turnos afectados', onClick: () => navigate('/profesional/turnos-afectados') }} />;
 
   const confirm = async (target) => {
-    await reschedule.mutateAsync({ appointmentId, ...target });
+    if (affectedAppointmentId) {
+      await resolveAffected.mutateAsync({
+        id: affectedAppointmentId,
+        nuevoDiaAgendaId: target.nuevoDiaAgendaId,
+        nuevoInicio: target.nuevoInicio,
+        nuevoFin: target.nuevoFin,
+        observacion: target.motivo,
+      });
+    } else {
+      await reschedule.mutateAsync({ appointmentId, ...target });
+    }
     success('Turno reprogramado', 'El nuevo día y horario quedaron confirmados y se generó la notificación.');
     navigate(`/profesional/mi-dia?fecha=${target.fecha}&turno=${appointmentId}`);
   };
 
-  return <RescheduleWorkspace appointment={appointment} timezone={timezone} loading={reschedule.isPending} onConfirm={confirm} onBack={() => navigate(`/profesional/mi-dia?fecha=${originalDate}&turno=${appointmentId}`)} />;
+  return <RescheduleWorkspace appointment={appointment} timezone={timezone} loading={reschedule.isPending || resolveAffected.isPending} onConfirm={confirm} onBack={() => navigate(`/profesional/mi-dia?fecha=${originalDate}&turno=${appointmentId}`)} />;
 }
 
 function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack }) {
@@ -150,6 +169,16 @@ function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack
     }
   };
 
+  const handleDayClick = (day) => {
+    const currentId = selectedDay?.diaAgendaId ?? selectedDay?.id;
+    const clickedId = day?.diaAgendaId ?? day?.id;
+    if (currentId != null && String(currentId) === String(clickedId)) {
+      if (selectedSlot && validationState !== 'checking') setStep(2);
+      return;
+    }
+    chooseDay(day);
+  };
+
   const clientName = `${appointment.cliente?.nombre || ''} ${appointment.cliente?.apellido || ''}`.trim();
   return <div className="mx-auto w-full max-w-[96rem] space-y-6">
     <PageHeader eyebrow="Reprogramación de turno" title="Cambiar día" description="Elegí una nueva fecha y confirmá el cambio." actions={<Button variant="outline" onClick={onBack}><ArrowLeft />Volver al turno</Button>} />
@@ -159,7 +188,7 @@ function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack
         <CardContent className="space-y-5">
           {step === 1 ? <>
             <div className="flex items-center justify-between gap-3"><Button size="icon" variant="outline" aria-label="Mes anterior para reprogramar" onClick={() => changeMonth(-1)}><ChevronLeft /></Button><strong>{view.month}/{view.year}</strong><Button size="icon" variant="outline" aria-label="Mes siguiente para reprogramar" onClick={() => changeMonth(1)}><ChevronRight /></Button></div>
-            <div className="[&_[role=gridcell]]:min-h-20"><MonthCalendar year={view.year} month={view.month} days={calendarDays} selectedDayId={selectedDay?.diaAgendaId ?? selectedDay?.id} onSelectDay={chooseDay} loading={loadingDays} showAvailabilitySummary disableUnselectable /></div>
+            <div className="[&_[role=gridcell]]:min-h-20"><MonthCalendar year={view.year} month={view.month} days={calendarDays} selectedDayId={selectedDay?.diaAgendaId ?? selectedDay?.id} onSelectDay={handleDayClick} loading={loadingDays} showAvailabilitySummary disableUnselectable /></div>
             {recommendedDays.length > 0 && <div><p className="mb-2 font-semibold">Próximos días disponibles</p><div className="flex flex-wrap gap-2">{recommendedDays.map((day) => <Button key={day.fecha} size="sm" variant="outline" onClick={() => chooseDay(day)}>{formatDateLong(day.fecha, timezone)}</Button>)}</div></div>}
             {validationState === 'checking' && <p role="status" className="text-muted-foreground">Comprobando el horario original…</p>}
             {validationState === 'available' && <Alert className="border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30"><CheckCircle2 /><AlertTitle>Horario disponible</AlertTitle><AlertDescription>Se puede conservar {startTime}–{endTime}.</AlertDescription></Alert>}

@@ -8,6 +8,7 @@ import { SettingsPage } from '../features/professional/pages/SettingsPage';
 import { AbsenceManagementPage } from '../features/professional/pages/AbsenceManagementPage';
 import { NewAppointmentPage } from '../features/professional/pages/NewAppointmentPage';
 import { RescheduleAppointmentPage } from '../features/professional/pages/RescheduleAppointmentPage';
+import { CompleteRescheduleAppointmentPage } from '../features/professional/pages/CompleteRescheduleAppointmentPage';
 import { NotFoundPage } from '../features/professional/pages/NotFoundPage';
 
 /**
@@ -28,6 +29,7 @@ export function createRoutes() {
         { path: 'mi-dia', element: <MyDayPage /> },
         { path: 'turnos/nuevo', element: <NewAppointmentPage /> },
         { path: 'turnos/:appointmentId/cambiar-dia', element: <RescheduleAppointmentPage /> },
+        { path: 'turnos/:appointmentId/reprogramar', element: <CompleteRescheduleAppointmentPage /> },
         { path: 'mi-semana', element: <MyWeekPage /> },
         { path: 'mi-mes', element: <MyMonthPage /> },
         { path: 'mi-anio', element: <MyYearPage /> },

@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  CalendarPlus,
   CalendarRange,
   CalendarX2,
   ChevronRight,
@@ -9,6 +10,7 @@ import {
   Settings2,
   SlidersHorizontal,
   UserRound,
+  UserRoundX,
   X,
 } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -53,12 +55,12 @@ import { professionalContext } from '@/config/professional';
 import { cn } from '@/lib/utils';
 
 const navigation = [
-  { to: '/profesional/turnos/nuevo', label: 'Nuevo turno', icon: UserRound },
+  { to: '/profesional/turnos/nuevo', label: 'Nuevo turno', icon: CalendarPlus },
   { to: '/profesional/mi-dia', label: 'Mi día', icon: Clock3 },
   { to: '/profesional/mi-mes', label: 'Mi mes', icon: CalendarDays },
   { to: '/profesional/mi-anio', label: 'Mi año', icon: CalendarRange },
   { type: 'absences', label: 'Ausencias y Modificaciones Excepcionales', icon: CalendarX2 },
-  { to: '/profesional/turnos-afectados', label: 'Turnos afectados', icon: UserRound },
+  { to: '/profesional/turnos-afectados', label: 'Turnos afectados', icon: UserRoundX },
   { to: '/profesional/configuracion', label: 'Configuración', icon: Settings2 },
   { to: '/profesional/mi-semana', label: 'Cambiar mi semana', icon: SlidersHorizontal },
 ];
@@ -157,7 +159,6 @@ function ProfileSummary({ isCollapsed = false }) {
 
 function NavigationContent({
   hasAnnualAgenda,
-  onNavigate,
   pendingAffectedCount,
   isCollapsed = false,
   onToggleCollapse = null,
@@ -179,7 +180,7 @@ function NavigationContent({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button asChild size="icon" className="size-9 bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90">
-                  <NavLink to="/profesional/configuracion" onClick={onNavigate} aria-label="Configurar agenda">
+                  <NavLink to="/profesional/configuracion" aria-label="Configurar agenda">
                     <ChevronRight className="size-4" />
                   </NavLink>
                 </Button>
@@ -188,7 +189,7 @@ function NavigationContent({
             </Tooltip>
           ) : (
             <Button asChild className="w-full justify-between bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90">
-              <NavLink to="/profesional/configuracion" onClick={onNavigate}>
+              <NavLink to="/profesional/configuracion">
                 Configurar agenda
                 <ChevronRight data-icon="inline-end" />
               </NavLink>
@@ -251,7 +252,6 @@ function NavigationContent({
                               <DropdownMenuItem key={childTo} asChild className="focus:bg-sidebar-accent focus:text-sidebar-accent-foreground">
                                 <NavLink
                                   to={childTo}
-                                  onClick={onNavigate}
                                   className={({ isActive }) =>
                                     cn(
                                       'flex w-full items-center rounded-md px-2.5 py-1.5 text-xs font-semibold cursor-pointer',
@@ -302,7 +302,6 @@ function NavigationContent({
                                 <NavLink
                                   key={childTo}
                                   to={childTo}
-                                  onClick={onNavigate}
                                   className={({ isActive }) =>
                                     cn(
                                       'flex min-h-9 items-center rounded-lg px-3 py-1.5 text-xs font-semibold text-sidebar-foreground/65 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground leading-snug',
@@ -326,24 +325,24 @@ function NavigationContent({
 
                 if (isCollapsed) {
                   return (
-                    <SidebarMenuItem key={to} className="flex justify-center">
+                    <SidebarMenuItem key={to} className="flex justify-center overflow-visible">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <SidebarMenuButton
                             asChild
                             isActive={active}
                             className={cn(
-                              'size-10 justify-center rounded-lg p-0 font-semibold text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground relative',
-                              affectedAlert && !active && 'bg-orange-500/10 text-orange-700'
+                              'size-10 justify-center rounded-lg p-0 font-semibold text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground relative overflow-visible',
+                              affectedAlert && !active && 'bg-red-500/15 text-red-300 hover:bg-red-500/25'
                             )}
                           >
                             <NavLink
                               to={to}
                               onClick={() => {
                                 setManuallyOpen(false);
-                                onNavigate?.();
                               }}
                               aria-label={label}
+                              className="relative flex size-10 items-center justify-center overflow-visible"
                             >
                               <Icon
                                 className={cn(
@@ -351,7 +350,7 @@ function NavigationContent({
                                   active
                                     ? 'text-sidebar-primary-foreground'
                                     : affectedAlert
-                                    ? 'text-orange-600'
+                                    ? 'text-red-400'
                                     : 'text-sidebar-primary'
                                 )}
                                 aria-hidden="true"
@@ -359,7 +358,7 @@ function NavigationContent({
                               <span className="sr-only">{label}</span>
                               {affectedAlert && (
                                 <span
-                                  className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-orange-500 text-[9px] font-black text-white shadow-xs"
+                                  className="absolute -top-1.5 -right-1.5 z-20 flex min-w-5 h-5 px-1 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow-md ring-2 ring-sidebar select-none tabular-nums"
                                   aria-label={`${pendingCount} ${pendingCount === 1 ? 'turno pendiente' : 'turnos pendientes'}`}
                                 >
                                   {pendingCount}
@@ -384,32 +383,32 @@ function NavigationContent({
                       isActive={active}
                       className={cn(
                         'h-10 rounded-lg px-3 font-semibold text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground',
-                        affectedAlert && !active && 'bg-orange-500/10 text-orange-700'
+                        affectedAlert && !active && 'bg-red-500/10 text-red-300 hover:bg-red-500/20'
                       )}
                     >
                       <NavLink
                         to={to}
                         onClick={() => {
                           setManuallyOpen(false);
-                          onNavigate?.();
                         }}
+                        className="flex items-center gap-2.5 w-full"
                       >
                         <Icon
                           className={cn(
                             active
                               ? 'text-sidebar-primary-foreground'
                               : affectedAlert
-                              ? 'text-orange-600'
+                              ? 'text-red-400'
                               : 'text-sidebar-primary'
                           )}
                           aria-hidden="true"
                         />
-                        <span className="flex-1">{label}</span>
+                        <span className="flex-1 truncate">{label}</span>
                         {affectedAlert && (
                           <span
                             className={cn(
-                              'min-w-5 rounded-full bg-orange-500 px-1.5 py-0.5 text-center text-[10px] font-black text-white',
-                              active && 'bg-white text-orange-600'
+                              'flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-red-600 text-center text-[11px] font-bold text-white shadow-xs tabular-nums',
+                              active && 'ring-2 ring-white/60'
                             )}
                             aria-label={`${pendingCount} ${pendingCount === 1 ? 'turno pendiente' : 'turnos pendientes'}`}
                           >
@@ -433,7 +432,6 @@ function NavigationContent({
             <TooltipTrigger asChild>
               <NavLink
                 to="/profesional/configuracion#perfil"
-                onClick={onNavigate}
                 aria-label="Perfil y zona horaria"
                 className="flex size-10 items-center justify-center rounded-lg text-sidebar-foreground/65 outline-none transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               >
@@ -449,7 +447,6 @@ function NavigationContent({
         ) : (
           <NavLink
             to="/profesional/configuracion#perfil"
-            onClick={onNavigate}
             className="flex items-center gap-3 rounded-lg p-2.5 text-xs font-semibold text-sidebar-foreground/65 outline-none transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
             <UserRound className="size-4 text-sidebar-primary" aria-hidden="true" />
@@ -494,7 +491,6 @@ export function ProfessionalSidebar({
   pendingAffectedCount,
   isCollapsed = false,
   onToggleCollapse = null,
-  onNavigate = null,
 }) {
   return (
     <TooltipProvider delayDuration={150}>
@@ -512,7 +508,6 @@ export function ProfessionalSidebar({
             pendingAffectedCount={pendingAffectedCount}
             isCollapsed={isCollapsed}
             onToggleCollapse={onToggleCollapse}
-            onNavigate={onNavigate}
           />
         </Sidebar>
       </SidebarProvider>
@@ -550,7 +545,6 @@ export function ProfessionalSidebar({
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
               <NavigationContent
                 hasAnnualAgenda={hasAnnualAgenda}
-                onNavigate={onClose}
                 pendingAffectedCount={pendingAffectedCount}
                 isCollapsed={false}
               />

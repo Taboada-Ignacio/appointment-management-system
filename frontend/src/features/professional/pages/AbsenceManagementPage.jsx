@@ -135,6 +135,7 @@ export function AbsenceManagementPage({ section = 'register' }) {
   const [rescheduling, setRescheduling] = useState(null);
   const [conflicts, setConflicts] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [vacationConflict, setVacationConflict] = useState(null);
   const preview = usePreviewAbsence();
   const previewUpdate = usePreviewAbsenceUpdate();
   const create = useCreateAbsence();
@@ -168,8 +169,14 @@ export function AbsenceManagementPage({ section = 'register' }) {
       setStep(2);
     } catch (error) {
       if (error.status === 409 && error.data?.codigo === 'EXCEPCION_AGENDA_SUPERPUESTA') {
-        setConflicts(error.data.coincidencias || []);
-        showError('Ya existe una excepción coincidente', 'Revisá la coincidencia y modificá la excepción vigente.');
+        const coincidencias = error.data.coincidencias || [];
+        const vacaciones = type === 'VACACIONES' && coincidencias.length === 1
+          && coincidencias[0].excepcion.tipo === 'VACACIONES';
+        if (vacaciones) setVacationConflict(coincidencias[0]);
+        else {
+          setConflicts(coincidencias);
+          showError('Ya existe una excepción coincidente', 'Revisá la coincidencia y modificá la excepción vigente.');
+        }
       } else showError('No se pudo revisar el impacto', error.message);
     }
   };
@@ -233,6 +240,30 @@ export function AbsenceManagementPage({ section = 'register' }) {
     setConflicts([]);
   };
 
+  const extendVacation = async () => {
+    const existing = vacationConflict.excepcion;
+    const merged = {
+      ...payload,
+      fechaInicio: [existing.fechaInicio, start].sort()[0],
+      fechaFin: [existing.fechaFin, end || start].sort().at(-1),
+      motivo: existing.motivo,
+    };
+    try {
+      const data = await previewUpdate.mutateAsync({ id: existing.id, payload: merged });
+      setEditing(existing);
+      setStart(merged.fechaInicio);
+      setEnd(merged.fechaFin);
+      setReason(merged.motivo);
+      setVacationConflict(null);
+      setImpact(data);
+      setDecisions(Object.fromEntries(data.turnosAfectados.map((turno) => [turno.turnoId, { decision: 'PENDIENTE' }])));
+      setStep(2);
+    } catch (error) {
+      setVacationConflict(null);
+      showError('No se pudo revisar la extensión', error.message);
+    }
+  };
+
   const updateDecision = (turnoId, decision) => setDecisions((current) => ({ ...current, [turnoId]: { decision } }));
   const resolveReschedule = (value) => {
     if (!value?.fecha || !value.horaInicio || !value.horaFin || value.horaInicio >= value.horaFin) return;
@@ -261,6 +292,7 @@ export function AbsenceManagementPage({ section = 'register' }) {
     setExcludedDates([]);
     setConflicts([]);
     setEditing(null);
+    setVacationConflict(null);
     setType(config.initialType);
   };
 
@@ -268,6 +300,16 @@ export function AbsenceManagementPage({ section = 'register' }) {
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog
+        open={Boolean(vacationConflict)}
+        onOpenChange={(open) => { if (!open) setVacationConflict(null); }}
+        title="Ya existen vacaciones en estos días"
+        description="¿Querés extender las vacaciones existentes? Se revisarán los turnos afectados antes de confirmar."
+        confirmLabel="Sí, extender"
+        cancelLabel="No"
+        onConfirm={extendVacation}
+        loading={previewUpdate.isPending}
+      />
       <PageHeader
         eyebrow={section === 'affected' ? 'Agenda' : config.eyebrow}
         title={isWizard ? config.title : section === 'exceptions' ? 'Consultar excepciones' : 'Turnos afectados'}
@@ -627,6 +669,8 @@ export function AbsenceManagementPage({ section = 'register' }) {
                   <Button onClick={confirm} disabled={create.isPending || update.isPending}>
                     {create.isPending || update.isPending
                       ? 'Aplicando…'
+                      : editing && type === 'VACACIONES'
+                      ? 'Confirmar extensión de vacaciones'
                       : editing
                       ? 'Confirmar modificación'
                       : config.confirmButtonLabel}

@@ -104,9 +104,6 @@ export function ProfessionalLayout() {
         pendingAffectedCount={pendingAffectedCount}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed((prev) => !prev)}
-        onNavigate={() => {
-          setIsCollapsed(true);
-        }}
       />
 
       <div className={cn('transition-[padding] duration-200 ease-in-out', isCollapsed ? 'lg:pl-20' : 'lg:pl-72')}>

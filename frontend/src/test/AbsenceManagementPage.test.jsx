@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/ToastProvider';
 import { AbsenceManagementPage } from '../features/professional/pages/AbsenceManagementPage';
@@ -16,16 +16,78 @@ function renderPage(section = 'register') {
       <ToastProvider>
         <MemoryRouter initialEntries={[`/profesional/ausencias/${section}`]}>
           <AbsenceManagementPage section={section} />
+          <LocationProbe />
         </MemoryRouter>
       </ToastProvider>
     </QueryClientProvider>,
   );
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="current-location" className="hidden">{location.pathname}{location.search}</output>;
+}
+
 describe('AbsenceManagementPage', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(api, 'get').mockResolvedValue([]);
+  });
+
+  it('ofrece cambiar día y reprogramación completa desde el detalle de un turno afectado', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue([{
+      afectacionId: 7,
+      turnoId: 101,
+      excepcionId: 3,
+      resolucion: 'PENDIENTE',
+      nombreCliente: 'Ana Gómez',
+      fechaOriginal: '2026-09-20',
+      inicioOriginal: '2026-09-20T13:00:00Z',
+      finOriginal: '2026-09-20T13:30:00Z',
+      tipoExcepcion: 'VACACIONES',
+    }]);
+
+    renderPage('affected');
+    fireEvent.click(await screen.findByRole('button', { name: 'Ver' }));
+
+    expect(screen.getByRole('button', { name: 'Cambiar día' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reprogramar turno' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reprogramar' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reprogramar turno' }));
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/profesional/turnos/101/reprogramar?fecha=2026-09-20');
+  });
+
+  it('abre el mismo flujo de cambiar día desde un turno afectado', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue([{
+      afectacionId: 7, turnoId: 101, excepcionId: 3, resolucion: 'PENDIENTE',
+      nombreCliente: 'Ana Gómez', fechaOriginal: '2026-09-20',
+      inicioOriginal: '2026-09-20T13:00:00Z', finOriginal: '2026-09-20T13:30:00Z',
+      tipoExcepcion: 'VACACIONES',
+    }]);
+
+    renderPage('affected');
+    fireEvent.click(await screen.findByRole('button', { name: 'Ver' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar día' }));
+
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/profesional/turnos/101/cambiar-dia?fecha=2026-09-20&afectacionId=7');
+  });
+
+  it('selecciona todos los turnos pendientes visibles en Turnos afectados', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue([
+      { afectacionId: 1, turnoId: 101, excepcionId: 3, resolucion: 'PENDIENTE', nombreCliente: 'Ana', fechaOriginal: '2026-09-20', tipoExcepcion: 'VACACIONES' },
+      { afectacionId: 2, turnoId: 102, excepcionId: 3, resolucion: 'PENDIENTE', nombreCliente: 'Beto', fechaOriginal: '2026-09-21', tipoExcepcion: 'VACACIONES' },
+    ]);
+    renderPage('affected');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar todos' }));
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar turno 101' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar turno 102' })).toBeChecked();
+    expect(screen.getByText('2 pendientes seleccionados')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deseleccionar todos' }));
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar turno 101' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Seleccionar turno 102' })).not.toBeChecked();
   });
 
   it('ordena el calendario de lunes a domingo', async () => {
@@ -85,6 +147,51 @@ describe('AbsenceManagementPage', () => {
       }),
       expect.anything(),
     );
+  });
+
+  it('propone extender vacaciones superpuestas y aplica la resolución a la excepción existente', async () => {
+    const existing = {
+      id: 5, tipo: 'VACACIONES', fechaInicio: '2026-09-20',
+      fechaFin: '2026-09-23', motivo: 'Vacaciones programadas', brechas: [],
+    };
+    const impact = {
+      previewToken: 'extension-token', cantidadTurnosAfectados: 1,
+      cantidadNotificacionesWhatsApp: 0, cantidadSinNotificacion: 1,
+      turnosAfectados: [{
+        turnoId: 42, nombreCliente: 'Ana', estado: 'ASIGNADO', fecha: '2026-09-25',
+        inicioEstimado: '2026-09-25T13:00:00Z', finEstimado: '2026-09-25T13:30:00Z',
+      }],
+    };
+    vi.spyOn(api, 'post').mockImplementation(async (url) => {
+      if (url.endsWith('/5/preview')) return impact;
+      throw Object.assign(new Error('Superposición'), {
+        status: 409,
+        data: { codigo: 'EXCEPCION_AGENDA_SUPERPUESTA', coincidencias: [{ excepcion: existing, fechasCoincidentes: ['2026-09-22', '2026-09-23'] }] },
+      });
+    });
+    const putSpy = vi.spyOn(api, 'put').mockResolvedValue({ excepcion: { ...existing, fechaFin: '2026-09-27' }, impacto: impact });
+
+    renderPage('register');
+    fireEvent.click(screen.getByRole('button', { name: /Desde:/ }));
+    fireEvent.click(document.querySelector('[data-day="22/9/2026"]'));
+    fireEvent.click(document.querySelector('[data-day="27/9/2026"]'));
+    fireEvent.change(screen.getByLabelText('Motivo'), { target: { value: 'Más vacaciones' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar impacto' }));
+
+    expect(await screen.findByText('Ya existen vacaciones en estos días')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sí, extender' }));
+    expect(await screen.findByText('Turnos afectados')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Dar de baja' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar extensión de vacaciones' }));
+
+    await waitFor(() => expect(putSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/5'),
+      expect.objectContaining({
+        fechaInicio: '2026-09-20', fechaFin: '2026-09-27', previewToken: 'extension-token',
+        decisiones: [{ turnoId: 42, decision: 'DAR_DE_BAJA' }],
+      }),
+      expect.anything(),
+    ));
   });
 
   it('permite registrar una habilitación extraordinaria con franjas y confirmación directa informativa', async () => {

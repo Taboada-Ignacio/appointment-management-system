@@ -144,7 +144,7 @@ public class ExcepcionAgendaController {
             @Valid @RequestBody ExcepcionAgendaRequestDto request,
             @RequestHeader(value = "X-Usuario", defaultValue = "admin") String usuario) {
         return ResponseEntity.ok(convertir(modificar.ejecutarConResultado(
-                profesionalId, excepcionId, request.toSolicitud(), request.previewToken(), usuario)));
+                profesionalId, excepcionId, request.toSolicitud(), request.previewToken(), request.decisiones(), usuario)));
     }
 
     @DeleteMapping("/{excepcionId}")

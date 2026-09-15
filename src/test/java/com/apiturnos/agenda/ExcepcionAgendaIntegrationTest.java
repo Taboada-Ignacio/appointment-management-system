@@ -644,6 +644,30 @@ class ExcepcionAgendaIntegrationTest {
                 .satisfies(a -> assertThat(a.getEstadoResolucion().name()).isEqualTo("PENDIENTE"));
     }
 
+    @Test
+    @DisplayName("Cancelar una excepción restaura turnos pendientes y conserva su historial")
+    void cancelarExcepcionRestauraTurnoPendiente() {
+        LocalDate dia = fecha(8, 13);
+        DiaAgenda diaAgenda = crearDia(dia, "ACTIVO");
+        crearBrecha(diaAgenda, LocalTime.of(8, 0), LocalTime.of(12, 0));
+        Turno turno = crearTurno(
+                diaAgenda, crearCliente(true), LocalTime.of(9, 0), LocalTime.of(9, 30));
+        SolicitudExcepcionAgenda solicitud = new SolicitudExcepcionAgenda(
+                dia, dia, TipoExcepcion.DIA_NO_LABORABLE, null, null, "Capacitación");
+        List<Turno> preview = previsualizarExcepcionAgenda.nueva(profesional.getId(), solicitud);
+        ExcepcionAgenda excepcion = aplicarConResoluciones.ejecutar(
+                profesional.getId(), solicitud, tokenImpacto.generar(solicitud, preview),
+                List.of(), "integration-test").excepcion();
+
+        cancelarExcepcionAgenda.ejecutar(profesional.getId(), excepcion.getId(), "integration-test");
+
+        assertThat(estadoActual(turno)).isEqualTo("ASIGNADO");
+        assertThat(afectacionRepository.findAll()).singleElement().satisfies(a -> {
+            assertThat(a.getEstadoResolucion().name()).isEqualTo("RESTAURADO");
+            assertThat(a.getResueltoEn()).isNotNull();
+        });
+    }
+
     private Profesional crearProfesional(String sufijo) {
         Profesional nuevo = new Profesional();
         nuevo.setNombre("Profesional");

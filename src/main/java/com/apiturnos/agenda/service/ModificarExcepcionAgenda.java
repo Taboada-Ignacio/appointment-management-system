@@ -1,6 +1,7 @@
 package com.apiturnos.agenda.service;
 
 import com.apiturnos.agenda.model.ExcepcionAgenda;
+import com.apiturnos.agenda.dto.DecisionTurnoAfectadoRequestDto;
 import com.apiturnos.agenda.repository.ExcepcionAgendaRepository;
 import com.apiturnos.auditoria.model.OperacionAuditoria;
 import com.apiturnos.auditoria.service.RegistradorAuditoria;
@@ -22,6 +23,7 @@ public class ModificarExcepcionAgenda {
     private final DetectorCoincidenciasExcepcionAgenda detectorCoincidencias;
     private final TokenImpactoExcepcionAgenda tokenImpacto;
     private final SincronizarEstadoDiasPorExcepcion sincronizarDias;
+    private final AplicarExcepcionConResoluciones aplicarConResoluciones;
 
     public ModificarExcepcionAgenda(ExcepcionAgendaRepository excepcionAgendaRepository,
                                      ValidadorExcepcionAgenda validador,
@@ -29,7 +31,8 @@ public class ModificarExcepcionAgenda {
                                      RegistradorAuditoria registradorAuditoria,
                                      DetectorCoincidenciasExcepcionAgenda detectorCoincidencias,
                                      TokenImpactoExcepcionAgenda tokenImpacto,
-                                     SincronizarEstadoDiasPorExcepcion sincronizarDias) {
+                                     SincronizarEstadoDiasPorExcepcion sincronizarDias,
+                                     AplicarExcepcionConResoluciones aplicarConResoluciones) {
         this.excepcionAgendaRepository = excepcionAgendaRepository;
         this.validador = validador;
         this.evaluarImpacto = evaluarImpacto;
@@ -37,6 +40,7 @@ public class ModificarExcepcionAgenda {
         this.detectorCoincidencias = detectorCoincidencias;
         this.tokenImpacto = tokenImpacto;
         this.sincronizarDias = sincronizarDias;
+        this.aplicarConResoluciones = aplicarConResoluciones;
     }
 
     @Transactional
@@ -53,13 +57,20 @@ public class ModificarExcepcionAgenda {
             Long excepcionId,
             SolicitudExcepcionAgenda solicitud,
             String usuario) {
-        return ejecutarConResultado(profesionalId, excepcionId, solicitud, null, usuario);
+        return ejecutarConResultado(profesionalId, excepcionId, solicitud, null, null, usuario);
     }
 
     @Transactional
     public ResultadoAplicacionExcepcionAgenda ejecutarConResultado(
             Long profesionalId, Long excepcionId, SolicitudExcepcionAgenda solicitud,
             String previewToken, String usuario) {
+        return ejecutarConResultado(profesionalId, excepcionId, solicitud, previewToken, null, usuario);
+    }
+
+    @Transactional
+    public ResultadoAplicacionExcepcionAgenda ejecutarConResultado(
+            Long profesionalId, Long excepcionId, SolicitudExcepcionAgenda solicitud,
+            String previewToken, List<DecisionTurnoAfectadoRequestDto> decisiones, String usuario) {
         validador.validar(solicitud);
         ExcepcionAgenda excepcion = excepcionAgendaRepository
                 .findByIdAndProfesionalId(excepcionId, profesionalId)
@@ -68,6 +79,7 @@ public class ModificarExcepcionAgenda {
             throw new ExcepcionAgendaInvalidaException("No se puede modificar una excepción cancelada");
         }
 
+        var fechasAnteriores = SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion);
         AplicarExcepcionAgenda.copiarDatos(excepcion, solicitud);
         detectorCoincidencias.validar(profesionalId, excepcion);
         List<Turno> impactoActual = evaluarImpacto.previsualizar(excepcion);
@@ -76,10 +88,15 @@ public class ModificarExcepcionAgenda {
                     "El impacto de la excepción cambió. Revise nuevamente los turnos afectados");
         }
 
-        var fechasAnteriores = SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion);
         excepcion = excepcionAgendaRepository.save(excepcion);
 
-        List<Turno> afectados = evaluarImpacto.ejecutar(excepcion, usuario);
+        List<Turno> afectados;
+        if (previewToken == null) {
+            afectados = evaluarImpacto.ejecutar(excepcion, usuario);
+        } else {
+            afectados = impactoActual;
+            aplicarConResoluciones.aplicarResoluciones(excepcion, afectados, decisiones, usuario);
+        }
         var fechasAReconciliar = new java.util.LinkedHashSet<>(fechasAnteriores);
         fechasAReconciliar.addAll(SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion));
         sincronizarDias.reconciliar(profesionalId, fechasAReconciliar, usuario);

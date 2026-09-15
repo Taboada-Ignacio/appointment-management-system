@@ -199,7 +199,10 @@ describe('Professional component accessibility and contract honesty', () => {
     const drawer = screen.getByRole('dialog', { name: 'Navegación profesional' });
     expect(within(drawer).getByRole('button', { name: 'Cerrar menú' })).toHaveFocus();
 
-    await user.keyboard('{Escape}');
+    await user.click(within(drawer).getByRole('link', { name: 'Mi mes' }));
+    expect(screen.getByRole('dialog', { name: 'Navegación profesional' })).toBeInTheDocument();
+
+    await user.click(document.querySelector('[data-slot="sheet-overlay"]'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });

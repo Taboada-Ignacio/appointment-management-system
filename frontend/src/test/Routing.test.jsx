@@ -118,18 +118,21 @@ describe('Routing & Shell Navigation', () => {
     expect(screen.getByRole('button', { name: /Volver a Mi Día/i })).toBeInTheDocument();
   });
 
-  it('contrae la barra lateral al seleccionar un enlace de navegación', async () => {
+  it('mantiene expandida la barra lateral al seleccionar otro panel', async () => {
     const user = userEvent.setup();
     renderWithRouter(['/profesional/mi-dia']);
 
     const desktopToggle = screen.getByRole('button', { name: 'Contraer barra lateral' });
     expect(desktopToggle).toBeInTheDocument();
+    const sidebar = document.querySelector('[data-slot="sidebar"][aria-label="Navegación profesional"]');
+    expect(sidebar).toHaveClass('w-72');
 
     const miMesLink = screen.getByRole('link', { name: /Mi mes/i });
     await user.click(miMesLink);
 
     expect(await screen.findByRole('heading', { name: /Mi mes/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Expandir barra lateral' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Contraer barra lateral' })).toBeInTheDocument();
+    expect(sidebar).toHaveClass('w-72');
   });
 
   it('permite expandir y contraer manualmente la barra lateral con el botón del encabezado', async () => {

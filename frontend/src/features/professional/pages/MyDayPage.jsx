@@ -359,6 +359,7 @@ export function MyDayPage() {
               onClose={() => setSelectedAppointmentId(null)}
               onCancel={() => setCancelOpen(true)}
               onReschedule={() => navigate(`/profesional/turnos/${selectedAppointment.id ?? selectedAppointment.turnoId}/cambiar-dia?fecha=${selectedAppointment.fecha}`)}
+              onCompleteReschedule={() => navigate(`/profesional/turnos/${selectedAppointment.id ?? selectedAppointment.turnoId}/reprogramar?fecha=${selectedAppointment.fecha}`)}
             />
           )}
         </div>
@@ -379,7 +380,7 @@ export function MyDayPage() {
   );
 }
 
-function AppointmentDetails({ appointment, timezone, onClose, onCancel, onReschedule }) {
+function AppointmentDetails({ appointment, timezone, onClose, onCancel, onReschedule, onCompleteReschedule }) {
   const client = appointment.cliente || {};
   const attention = appointment.tipoAtencion || {};
   const fullName = `${client.nombre || ''} ${client.apellido || ''}`.trim() || 'Sin nombre informado';
@@ -423,6 +424,7 @@ function AppointmentDetails({ appointment, timezone, onClose, onCancel, onResche
         <CardAction className="flex flex-wrap items-center justify-end gap-2">
           <Button type="button" size="sm" variant="destructive" onClick={onCancel}>Cancelar turno</Button>
           <Button type="button" size="sm" variant="outline" onClick={onReschedule}>Cambiar día</Button>
+          <Button type="button" size="sm" onClick={onCompleteReschedule}>Reprogramar turno</Button>
           <Button type="button" variant="ghost" size="icon-sm" aria-label="Cerrar detalle del turno" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>

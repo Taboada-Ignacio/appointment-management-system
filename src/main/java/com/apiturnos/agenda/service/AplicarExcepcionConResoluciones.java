@@ -93,8 +93,19 @@ public class AplicarExcepcionConResoluciones {
                     "El impacto de la excepción cambió. Revise nuevamente los turnos afectados");
         }
 
-        Map<Long, DecisionTurnoAfectadoRequestDto> decisionesPorTurno = validarDecisiones(afectados, decisiones);
         excepcion = excepcionRepository.save(excepcion);
+        aplicarResoluciones(excepcion, afectados, decisiones, usuario);
+        sincronizarDias.reconciliar(profesionalId,
+                SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion), usuario);
+
+        auditoria.registrar("AGENDA", "ExcepcionAgenda", excepcion.getId(), OperacionAuditoria.CREATE,
+                usuario, profesionalId, "EXCEPCION_CON_RESOLUCIONES: afectados=" + afectados.size());
+        return new ResultadoAplicacionExcepcionAgenda(excepcion, afectados);
+    }
+
+    void aplicarResoluciones(ExcepcionAgenda excepcion, List<Turno> afectados,
+                            List<DecisionTurnoAfectadoRequestDto> decisiones, String usuario) {
+        Map<Long, DecisionTurnoAfectadoRequestDto> decisionesPorTurno = validarDecisiones(afectados, decisiones);
         Map<Long, AfectacionTurnoExcepcion> relaciones = registrarAfectaciones(
                 excepcion, afectados, decisionesPorTurno, usuario);
 
@@ -115,13 +126,6 @@ public class AplicarExcepcionConResoluciones {
             }
         }
 
-        sincronizarDias.reconciliar(profesionalId,
-                SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion), usuario);
-
-        auditoria.registrar("AGENDA", "ExcepcionAgenda", excepcion.getId(), OperacionAuditoria.CREATE,
-                usuario, profesionalId, "EXCEPCION_CON_RESOLUCIONES: afectados=" + afectados.size()
-                        + "; bajas=" + paraBaja.size());
-        return new ResultadoAplicacionExcepcionAgenda(excepcion, afectados);
     }
 
     private Map<Long, DecisionTurnoAfectadoRequestDto> validarDecisiones(
