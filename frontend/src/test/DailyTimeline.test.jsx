@@ -201,6 +201,33 @@ describe('DailyTimeline Component', () => {
     expect(onSelectAppointment).toHaveBeenCalledWith(expect.objectContaining({ id: 44 }));
   });
 
+  it('shows each overlapping appointment in its own selectable column', () => {
+    const onSelectAppointment = vi.fn();
+    render(
+      <DailyTimeline
+        day={{ fecha: '2026-09-15', estadoActual: 'ACTIVO', brechas: [{ horaInicio: '09:00', horaFin: '13:00' }] }}
+        timezone="America/Argentina/Buenos_Aires"
+        appointments={[
+          { id: 44, inicioEstimado: '2026-09-15T13:00:00Z', finEstimado: '2026-09-15T13:30:00Z', cliente: { nombre: 'Ana', apellido: 'Paz' } },
+          { id: 45, inicioEstimado: '2026-09-15T13:00:00Z', finEstimado: '2026-09-15T13:30:00Z', cliente: { nombre: 'Bruno', apellido: 'López' } },
+        ]}
+        onSelectAppointment={onSelectAppointment}
+      />
+    );
+
+    const ana = screen.getByRole('button', { name: /Turno asignado de Ana Paz/ });
+    const bruno = screen.getByRole('button', { name: /Turno asignado de Bruno López/ });
+    expect(ana).toHaveAttribute('data-overlap-lanes', '2');
+    expect(bruno).toHaveAttribute('data-overlap-lanes', '2');
+    expect(ana).toHaveAttribute('data-overlap-lane', '0');
+    expect(bruno).toHaveAttribute('data-overlap-lane', '1');
+
+    fireEvent.click(ana);
+    fireEvent.click(bruno);
+    expect(onSelectAppointment).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: 44 }));
+    expect(onSelectAppointment).toHaveBeenNthCalledWith(2, expect.objectContaining({ id: 45 }));
+  });
+
   it('acomoda horario y cliente según la altura disponible del turno y el zoom', () => {
     const appointment = {
       id: 45,

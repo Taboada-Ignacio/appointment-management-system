@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
@@ -23,6 +23,7 @@ import { MonthWheelPicker } from '@/components/ui/MonthWheelPicker';
 
 const time = (value) => String(value || '').slice(0, 5);
 const localToInstant = (date, hour) => new Date(`${date}T${hour}:00`).toISOString();
+const NO_UNAVAILABLE_DATES = [];
 
 export function CompleteRescheduleAppointmentPage() {
   const { appointmentId } = useParams();
@@ -68,7 +69,7 @@ export function CompleteRescheduleAppointmentPage() {
   return <CompleteRescheduleWorkspace appointment={appointment} timezone={professionalContext.timezone} loading={reschedule.isPending || resolveAffected.isPending} onConfirm={confirm} onBack={() => navigate(`/profesional/mi-dia?fecha=${originalDate}&turno=${appointmentId}`)} />;
 }
 
-export function CompleteRescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack }) {
+export function CompleteRescheduleWorkspace({ appointment, timezone, unavailableDates = NO_UNAVAILABLE_DATES, loading, onConfirm, onBack }) {
   const initial = parseDateString(appointment.fecha);
   const [step, setStep] = useState(1);
   const [view, setView] = useState({ year: initial.year, month: initial.month });
@@ -84,6 +85,7 @@ export function CompleteRescheduleWorkspace({ appointment, timezone, loading, on
   const [timelineZoom, setTimelineZoom] = useState(100);
   const { firstDay, lastDay } = getMonthRange(view.year, view.month);
   const { data: days = [], isLoading: loadingDays } = useSelectableDays(firstDay, lastDay);
+  const unavailableDateSet = useMemo(() => new Set(unavailableDates), [unavailableDates]);
   const { data: dayDetail } = useDayDetail(selectedDay?.diaAgendaId ?? selectedDay?.id);
   const { data: assignedAppointments = [] } = useAssignedAppointments(selectedDay?.fecha, selectedDay?.fecha);
 
@@ -98,11 +100,18 @@ export function CompleteRescheduleWorkspace({ appointment, timezone, loading, on
     return () => { active = false; };
   }, [appointment.tipoAtencion?.id, appointment.tipoAtencionId, selectedDay]);
 
-  const calendarDays = days.map((day) => ({
-    ...day,
-    id: day.diaAgendaId ?? day.id,
-    estadoActual: day.estadoActual ?? day.estado,
-  }));
+  const calendarDays = days.map((day) => {
+    const blockedByPendingException = unavailableDateSet.has(day.fecha);
+    return {
+      ...day,
+      id: day.diaAgendaId ?? day.id,
+      estadoActual: day.estadoActual ?? day.estado,
+      seleccionable: day.seleccionable && !blockedByPendingException,
+      mensaje: blockedByPendingException
+        ? 'Este día quedará afectado por la excepción que estás registrando.'
+        : day.mensaje,
+    };
+  });
   const selectedSuggestion = suggestions.find((slot) => start === time(slot.horaInicio) && end === time(slot.horaFin));
   const client = appointment.cliente || {};
   const clientName = `${client.nombre || ''} ${client.apellido || ''}`.trim() || 'Sin nombre informado';

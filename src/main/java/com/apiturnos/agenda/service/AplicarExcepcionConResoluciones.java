@@ -3,9 +3,11 @@ package com.apiturnos.agenda.service;
 import com.apiturnos.agenda.dto.DecisionTurnoAfectadoRequestDto;
 import com.apiturnos.agenda.dto.TipoDecisionTurnoAfectado;
 import com.apiturnos.agenda.model.AfectacionTurnoExcepcion;
+import com.apiturnos.agenda.model.DiaAgenda;
 import com.apiturnos.agenda.model.EstadoResolucionAfectacion;
 import com.apiturnos.agenda.model.ExcepcionAgenda;
 import com.apiturnos.agenda.repository.AfectacionTurnoExcepcionRepository;
+import com.apiturnos.agenda.repository.DiaAgendaRepository;
 import com.apiturnos.agenda.repository.ExcepcionAgendaRepository;
 import com.apiturnos.auditoria.model.OperacionAuditoria;
 import com.apiturnos.auditoria.service.RegistradorAuditoria;
@@ -14,6 +16,7 @@ import com.apiturnos.estado.service.GestorCambioEstado;
 import com.apiturnos.profesional.model.Profesional;
 import com.apiturnos.profesional.repository.ProfesionalRepository;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
+import com.apiturnos.shared.exception.NegocioException;
 import com.apiturnos.turno.model.Turno;
 import com.apiturnos.turno.service.PoliticaTransicionesTurno;
 import com.apiturnos.turno.service.ReprogramarTurno;
@@ -33,6 +36,7 @@ public class AplicarExcepcionConResoluciones {
     private final ProfesionalRepository profesionalRepository;
     private final ExcepcionAgendaRepository excepcionRepository;
     private final AfectacionTurnoExcepcionRepository afectacionRepository;
+    private final DiaAgendaRepository diaAgendaRepository;
     private final ValidadorExcepcionAgenda validador;
     private final EvaluarImpactoExcepcionAgenda evaluarImpacto;
     private final TokenImpactoExcepcionAgenda tokenImpacto;
@@ -47,6 +51,7 @@ public class AplicarExcepcionConResoluciones {
             ProfesionalRepository profesionalRepository,
             ExcepcionAgendaRepository excepcionRepository,
             AfectacionTurnoExcepcionRepository afectacionRepository,
+            DiaAgendaRepository diaAgendaRepository,
             ValidadorExcepcionAgenda validador,
             EvaluarImpactoExcepcionAgenda evaluarImpacto,
             TokenImpactoExcepcionAgenda tokenImpacto,
@@ -59,6 +64,7 @@ public class AplicarExcepcionConResoluciones {
         this.profesionalRepository = profesionalRepository;
         this.excepcionRepository = excepcionRepository;
         this.afectacionRepository = afectacionRepository;
+        this.diaAgendaRepository = diaAgendaRepository;
         this.validador = validador;
         this.evaluarImpacto = evaluarImpacto;
         this.tokenImpacto = tokenImpacto;
@@ -105,7 +111,8 @@ public class AplicarExcepcionConResoluciones {
 
     void aplicarResoluciones(ExcepcionAgenda excepcion, List<Turno> afectados,
                             List<DecisionTurnoAfectadoRequestDto> decisiones, String usuario) {
-        Map<Long, DecisionTurnoAfectadoRequestDto> decisionesPorTurno = validarDecisiones(afectados, decisiones);
+        Map<Long, DecisionTurnoAfectadoRequestDto> decisionesPorTurno = validarDecisiones(
+                excepcion, afectados, decisiones);
         Map<Long, AfectacionTurnoExcepcion> relaciones = registrarAfectaciones(
                 excepcion, afectados, decisionesPorTurno, usuario);
 
@@ -129,7 +136,8 @@ public class AplicarExcepcionConResoluciones {
     }
 
     private Map<Long, DecisionTurnoAfectadoRequestDto> validarDecisiones(
-            List<Turno> afectados, List<DecisionTurnoAfectadoRequestDto> decisiones) {
+            ExcepcionAgenda excepcion, List<Turno> afectados,
+            List<DecisionTurnoAfectadoRequestDto> decisiones) {
         Set<Long> ids = afectados.stream().map(Turno::getId).collect(Collectors.toSet());
         Map<Long, DecisionTurnoAfectadoRequestDto> resultado = new HashMap<>();
         if (decisiones == null) return resultado;
@@ -140,8 +148,22 @@ public class AplicarExcepcionConResoluciones {
             if (resultado.put(decision.turnoId(), decision) != null) {
                 throw new IllegalArgumentException("El turno " + decision.turnoId() + " tiene decisiones duplicadas");
             }
+            if (decision.decision() == TipoDecisionTurnoAfectado.REPROGRAMAR) {
+                validarDestinoFueraDeExcepcion(excepcion, decision);
+            }
         }
         return resultado;
+    }
+
+    private void validarDestinoFueraDeExcepcion(
+            ExcepcionAgenda excepcion, DecisionTurnoAfectadoRequestDto decision) {
+        validarReprogramacion(decision);
+        DiaAgenda nuevoDia = diaAgendaRepository.findByIdAndProfesionalId(
+                        decision.nuevoDiaAgendaId(), excepcion.getProfesional().getId())
+                .orElseThrow(() -> new EntidadNoEncontradaException("DiaAgenda", decision.nuevoDiaAgendaId()));
+        if (SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion).contains(nuevoDia.getFecha())) {
+            throw new NegocioException("No se puede reprogramar un turno a un día afectado por la excepción que se está registrando");
+        }
     }
 
     private Map<Long, AfectacionTurnoExcepcion> registrarAfectaciones(

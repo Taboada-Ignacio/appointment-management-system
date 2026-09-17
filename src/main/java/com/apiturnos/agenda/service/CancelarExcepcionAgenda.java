@@ -10,9 +10,13 @@ import com.apiturnos.turno.service.PoliticaTransicionesTurno;
 import com.apiturnos.auditoria.model.OperacionAuditoria;
 import com.apiturnos.auditoria.service.RegistradorAuditoria;
 import com.apiturnos.shared.exception.EntidadNoEncontradaException;
+import com.apiturnos.shared.exception.NegocioException;
+import com.apiturnos.turno.repository.MotivoBajaTurnoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Service
 public class CancelarExcepcionAgenda {
@@ -22,17 +26,23 @@ public class CancelarExcepcionAgenda {
     private final SincronizarEstadoDiasPorExcepcion sincronizarDias;
     private final AfectacionTurnoExcepcionRepository afectaciones;
     private final GestorCambioEstado estados;
+    private final MotivoBajaTurnoRepository motivosBaja;
+    private final Clock clock;
 
     public CancelarExcepcionAgenda(ExcepcionAgendaRepository excepcionAgendaRepository,
                                     RegistradorAuditoria registradorAuditoria,
                                     SincronizarEstadoDiasPorExcepcion sincronizarDias,
                                     AfectacionTurnoExcepcionRepository afectaciones,
-                                    GestorCambioEstado estados) {
+                                    GestorCambioEstado estados,
+                                    MotivoBajaTurnoRepository motivosBaja,
+                                    Clock clock) {
         this.excepcionAgendaRepository = excepcionAgendaRepository;
         this.registradorAuditoria = registradorAuditoria;
         this.sincronizarDias = sincronizarDias;
         this.afectaciones = afectaciones;
         this.estados = estados;
+        this.motivosBaja = motivosBaja;
+        this.clock = clock;
     }
 
     @Transactional
@@ -41,23 +51,21 @@ public class CancelarExcepcionAgenda {
                 .findByIdAndProfesionalId(excepcionId, profesionalId)
                 .orElseThrow(() -> new EntidadNoEncontradaException("ExcepcionAgenda", excepcionId));
 
+        LocalDate hoy = LocalDate.now(clock);
+        if (hoy.isAfter(excepcion.getFechaFin())) {
+            throw new NegocioException("La excepción " + excepcionId + " ya finalizó y no puede darse de baja");
+        }
+        if (hoy.isBefore(excepcion.getFechaInicio())) {
+            eliminarFutura(excepcion, profesionalId, usuario);
+            return excepcion;
+        }
+
         if (excepcion.isActiva()) {
             var fechasAfectadas = SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion);
             excepcion.setActiva(false);
             excepcion = excepcionAgendaRepository.save(excepcion);
             sincronizarDias.reconciliar(profesionalId, fechasAfectadas, usuario);
-            for (var afectacion : afectaciones.findByExcepcionAgendaIdOrderByIdAsc(excepcionId)) {
-                if (afectacion.getEstadoResolucion() != EstadoResolucionAfectacion.PENDIENTE) continue;
-                Long turnoId = afectacion.getTurno().getId();
-                if (!PoliticaTransicionesTurno.AFECTADO_POR_EXCEPCION.equals(
-                        estados.obtenerNombreEstadoActual(AmbitoEstado.TURNO, turnoId))) continue;
-                estados.registrarCambio(AmbitoEstado.TURNO, turnoId,
-                        afectacion.getEstadoTurnoAnterior(), usuario,
-                        "Restaurado por cancelación de excepción " + excepcionId, null);
-                afectacion.setEstadoResolucion(EstadoResolucionAfectacion.RESTAURADO);
-                afectacion.setResueltoEn(Instant.now());
-                afectaciones.save(afectacion);
-            }
+            restaurarPendientes(excepcion, usuario);
             registradorAuditoria.registrar(
                     "AGENDA",
                     "ExcepcionAgenda",
@@ -70,5 +78,34 @@ public class CancelarExcepcionAgenda {
         }
 
         return excepcion;
+    }
+
+    private void eliminarFutura(ExcepcionAgenda excepcion, Long profesionalId, String usuario) {
+        Long excepcionId = excepcion.getId();
+        sincronizarDias.reconciliar(profesionalId,
+                SincronizarEstadoDiasPorExcepcion.fechasEfectivas(excepcion), usuario);
+        restaurarPendientes(excepcion, usuario);
+        motivosBaja.desvincularExcepcion(excepcionId);
+        afectaciones.deleteByExcepcionAgendaId(excepcionId);
+        excepcionAgendaRepository.delete(excepcion);
+        registradorAuditoria.registrar(
+                "AGENDA", "ExcepcionAgenda", excepcionId, OperacionAuditoria.DELETE,
+                usuario, profesionalId,
+                "EXCEPCION_AGENDA_ELIMINADA_ANTICIPADAMENTE: tipo=" + excepcion.getTipo());
+    }
+
+    private void restaurarPendientes(ExcepcionAgenda excepcion, String usuario) {
+        for (var afectacion : afectaciones.findByExcepcionAgendaIdOrderByIdAsc(excepcion.getId())) {
+            if (afectacion.getEstadoResolucion() != EstadoResolucionAfectacion.PENDIENTE) continue;
+            Long turnoId = afectacion.getTurno().getId();
+            if (!PoliticaTransicionesTurno.AFECTADO_POR_EXCEPCION.equals(
+                    estados.obtenerNombreEstadoActual(AmbitoEstado.TURNO, turnoId))) continue;
+            estados.registrarCambio(AmbitoEstado.TURNO, turnoId,
+                    afectacion.getEstadoTurnoAnterior(), usuario,
+                    "Restaurado por cancelación de excepción " + excepcion.getId(), null);
+            afectacion.setEstadoResolucion(EstadoResolucionAfectacion.RESTAURADO);
+            afectacion.setResueltoEn(Instant.now());
+            afectaciones.save(afectacion);
+        }
     }
 }

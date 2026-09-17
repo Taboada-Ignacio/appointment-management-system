@@ -32,6 +32,7 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -116,7 +117,9 @@ class ExcepcionAgendaControllerUnitTest {
         ResultadoAplicacionExcepcionAgenda resultado =
                 new ResultadoAplicacionExcepcionAgenda(excepcion, List.of());
         when(aplicar.ejecutarConResultado(eq(1L), any(), eq("profesional"))).thenReturn(resultado);
-        when(modificar.ejecutarConResultado(eq(1L), eq(10L), any(), eq("profesional"))).thenReturn(resultado);
+        when(modificar.ejecutarConResultado(
+                eq(1L), eq(10L), any(), isNull(), isNull(), eq("profesional")))
+                .thenReturn(resultado);
         when(cancelar.ejecutar(1L, 10L, "profesional")).thenReturn(excepcion);
         when(constructorImpacto.construir(List.of())).thenReturn(impacto);
 

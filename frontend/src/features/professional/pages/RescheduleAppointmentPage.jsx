@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
@@ -17,6 +17,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+
+const NO_UNAVAILABLE_DATES = [];
 
 export function RescheduleAppointmentPage() {
   const { appointmentId } = useParams();
@@ -58,7 +60,7 @@ export function RescheduleAppointmentPage() {
   return <RescheduleWorkspace appointment={appointment} timezone={timezone} loading={reschedule.isPending || resolveAffected.isPending} onConfirm={confirm} onBack={() => navigate(`/profesional/mi-dia?fecha=${originalDate}&turno=${appointmentId}`)} />;
 }
 
-function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack }) {
+export function RescheduleWorkspace({ appointment, timezone, unavailableDates = NO_UNAVAILABLE_DATES, loading, onConfirm, onBack }) {
   const initial = parseDateString(appointment.fecha);
   const [view, setView] = useState({ year: initial.year, month: initial.month });
   const [selectedDay, setSelectedDay] = useState(null);
@@ -74,13 +76,16 @@ function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack
   const validationSequence = useRef(0);
   const { firstDay, lastDay } = getMonthRange(view.year, view.month);
   const { data: days = [], isLoading: loadingDays } = useSelectableDays(firstDay, lastDay);
+  const unavailableDateSet = useMemo(() => new Set(unavailableDates), [unavailableDates]);
   const startTime = instantTimeLabel(appointment.inicioEstimado, timezone);
   const endTime = instantTimeLabel(appointment.finEstimado, timezone);
   const { data: selectedDayDetail } = useDayDetail(showTimeline ? selectedDay?.diaAgendaId ?? selectedDay?.id : null);
   const { data: selectedDayAppointments = [] } = useAssignedAppointments(showTimeline ? selectedDay?.fecha : null, showTimeline ? selectedDay?.fecha : null);
   useEffect(() => {
     let cancelled = false;
-    const candidates = days.filter((day) => day.seleccionable && day.fecha !== appointment.fecha);
+    const candidates = days.filter((day) => (
+      day.seleccionable && day.fecha !== appointment.fecha && !unavailableDateSet.has(day.fecha)
+    ));
     setAvailabilityByDate(Object.fromEntries(candidates.map((day) => [day.fecha, 'checking'])));
     Promise.all(candidates.map(async (day) => {
       try {
@@ -98,12 +103,15 @@ function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack
       if (!cancelled) setAvailabilityByDate(Object.fromEntries(entries));
     });
     return () => { cancelled = true; };
-  }, [appointment.id, appointment.turnoId, appointment.fecha, days, endTime, startTime]);
+  }, [appointment.id, appointment.turnoId, appointment.fecha, days, endTime, startTime, unavailableDateSet]);
 
   const calendarDays = days.map((day) => {
     const isCurrentAppointmentDay = day.fecha === appointment.fecha;
+    const blockedByPendingException = unavailableDateSet.has(day.fecha);
     const scheduleAvailability = availabilityByDate[day.fecha];
-    const sameTimeUnavailable = !isCurrentAppointmentDay && (!day.seleccionable || scheduleAvailability === 'unavailable');
+    const sameTimeUnavailable = !isCurrentAppointmentDay && (
+      blockedByPendingException || !day.seleccionable || scheduleAvailability === 'unavailable'
+    );
     return {
       ...day,
       id: day.diaAgendaId ?? day.id,
@@ -111,7 +119,13 @@ function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack
       isCurrentAppointmentDay,
       sameTimeUnavailable,
       seleccionable: !isCurrentAppointmentDay && day.seleccionable && scheduleAvailability === 'available',
-      mensaje: isCurrentAppointmentDay ? 'Este es el día actual del turno.' : sameTimeUnavailable ? `El horario ${startTime}–${endTime} no está disponible.` : day.mensaje,
+      mensaje: isCurrentAppointmentDay
+        ? 'Este es el día actual del turno.'
+        : blockedByPendingException
+        ? 'Este día quedará afectado por la excepción que estás registrando.'
+        : sameTimeUnavailable
+        ? `El horario ${startTime}–${endTime} no está disponible.`
+        : day.mensaje,
     };
   });
   const recommendedDays = calendarDays.filter((day) => day.seleccionable).sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 3);
@@ -128,7 +142,11 @@ function RescheduleWorkspace({ appointment, timezone, loading, onConfirm, onBack
     const different = day?.fecha && day.fecha !== appointment.fecha;
     if (!different || !day?.seleccionable) {
       setSelectedDay(null); setSelectedSlot(null); setValidationState('idle');
-      setMessage(!different ? 'Elegí un día diferente al actual.' : 'Ese día no está habilitado para recibir turnos.');
+      setMessage(!different
+        ? 'Elegí un día diferente al actual.'
+        : unavailableDateSet.has(day?.fecha)
+        ? 'Ese día quedará afectado por la excepción que estás registrando.'
+        : 'Ese día no está habilitado para recibir turnos.');
       return;
     }
     const sequence = ++validationSequence.current;

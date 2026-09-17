@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateRangePickerField } from '@/components/DateRangePickerField';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TimeWheelPicker } from '@/components/ui/TimeWheelPicker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,8 +23,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/ToastProvider';
 import { PageHeader } from '../components/PageHeader';
 import { useCreateAbsence, usePreviewAbsence, usePreviewAbsenceUpdate, useUpdateAbsence } from '../hooks/useAbsences';
-import { useSelectableDays } from '../hooks/useAgenda';
 import { AffectedAppointmentsPanel, ExceptionsPanel } from '../components/ExceptionPanels';
+import { RescheduleWorkspace } from './RescheduleAppointmentPage';
+import { CompleteRescheduleWorkspace } from './CompleteRescheduleAppointmentPage';
+import { professionalContext } from '../../../config/professional';
 import { TYPE_LABELS } from '../utils/exceptionLabels';
 
 const TYPES = [
@@ -102,10 +103,6 @@ function datesInRange(start, end) {
   return dates;
 }
 
-function localToInstant(date, time) {
-  return new Date(`${date}T${time}:00`).toISOString();
-}
-
 function mergeGaps(...groups) {
   const sorted = groups.flat().filter(Boolean).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
   return sorted.reduce((result, gap) => {
@@ -153,6 +150,10 @@ export function AbsenceManagementPage({ section = 'register' }) {
   }), [end, excludedDates, gaps, reason, requiresGaps, start, type]);
 
   const rangeDates = useMemo(() => datesInRange(start, end || start), [start, end]);
+  const exceptionDatesForResolution = useMemo(
+    () => rangeDates.filter((date) => !excludedDates.includes(date)),
+    [excludedDates, rangeDates],
+  );
 
   const canPreview = start && (end || start) >= start && reason.trim()
     && (type === 'VACACIONES' || excludedDates.length < rangeDates.length)
@@ -266,19 +267,36 @@ export function AbsenceManagementPage({ section = 'register' }) {
 
   const updateDecision = (turnoId, decision) => setDecisions((current) => ({ ...current, [turnoId]: { decision } }));
   const resolveReschedule = (value) => {
-    if (!value?.fecha || !value.horaInicio || !value.horaFin || value.horaInicio >= value.horaFin) return;
+    if (!value?.fecha || !value?.nuevoDiaAgendaId || !value?.nuevoInicio || !value?.nuevoFin) return;
     setDecisions((current) => ({
       ...current,
       [rescheduling.turnoId]: {
         decision: 'REPROGRAMAR',
-        nuevoDiaAgendaId: Number(value.diaAgendaId),
-        nuevoInicio: localToInstant(value.fecha, value.horaInicio),
-        nuevoFin: localToInstant(value.fecha, value.horaFin),
-        observacion: value.observacion || '',
+        nuevoDiaAgendaId: Number(value.nuevoDiaAgendaId),
+        nuevoInicio: value.nuevoInicio,
+        nuevoFin: value.nuevoFin,
+        observacion: value.motivo || '',
       },
     }));
     setRescheduling(null);
   };
+
+  const appointmentForResolution = (turno) => ({
+    id: turno.turnoId,
+    turnoId: turno.turnoId,
+    fecha: turno.fecha,
+    inicioEstimado: turno.inicioEstimado,
+    finEstimado: turno.finEstimado,
+    estado: turno.estado,
+    tipoAtencionId: turno.tipoAtencionId,
+    tipoAtencion: turno.tipoAtencion,
+    cliente: {
+      id: turno.clienteId,
+      nombre: turno.nombreCliente || 'Cliente sin nombre informado',
+      apellido: '',
+      telefono: turno.telefono,
+    },
+  });
 
   const reset = () => {
     setStep(1);
@@ -589,7 +607,29 @@ export function AbsenceManagementPage({ section = 'register' }) {
             </Card>
           )}
 
-          {step === 2 && section !== 'habilitaciones' && (
+          {step === 2 && section !== 'habilitaciones' && rescheduling && (
+            rescheduling.mode === 'CAMBIAR_DIA' ? (
+              <RescheduleWorkspace
+                appointment={appointmentForResolution(rescheduling)}
+                timezone={professionalContext.timezone}
+                unavailableDates={section === 'register' && !editing ? exceptionDatesForResolution : []}
+                loading={false}
+                onConfirm={resolveReschedule}
+                onBack={() => setRescheduling(null)}
+              />
+            ) : (
+              <CompleteRescheduleWorkspace
+                appointment={appointmentForResolution(rescheduling)}
+                timezone={professionalContext.timezone}
+                unavailableDates={section === 'register' && !editing ? exceptionDatesForResolution : []}
+                loading={false}
+                onConfirm={resolveReschedule}
+                onBack={() => setRescheduling(null)}
+              />
+            )
+          )}
+
+          {step === 2 && section !== 'habilitaciones' && !rescheduling && (
             <Card>
               <CardHeader>
                 <CardTitle>
@@ -644,10 +684,18 @@ export function AbsenceManagementPage({ section = 'register' }) {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setRescheduling(turno)}
+                            onClick={() => setRescheduling({ ...turno, mode: 'CAMBIAR_DIA' })}
                           >
                             <Clock3 />
-                            Reprogramar
+                            Cambiar día
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setRescheduling({ ...turno, mode: 'REPROGRAMAR' })}
+                          >
+                            <Clock3 />
+                            Reprogramar turno
                           </Button>
                         </div>
                       </div>
@@ -728,47 +776,8 @@ export function AbsenceManagementPage({ section = 'register' }) {
       {section === 'exceptions' && <ExceptionsPanel onRegister={()=>navigate('/profesional/ausencias/registrar')}/>}
       {section === 'affected' && <AffectedAppointmentsPanel/>}
 
-      <RescheduleDialog turno={rescheduling} onClose={()=>setRescheduling(null)} onConfirm={resolveReschedule}/>
     </div>
   );
 }
 
 function Summary({label,value}) { return <div className="rounded-xl border p-4"><span className="text-xs text-muted-foreground">{label}</span><strong className="mt-1 block text-2xl">{value}</strong></div>; }
-
-function RescheduleDialog({ turno, onClose, onConfirm }) {
-  const [form, setForm] = useState({ fecha:'', horaInicio:'', horaFin:'', observacion:'' });
-  const { data: days } = useSelectableDays(form.fecha, form.fecha);
-  const selectedDay = days?.find((day) => day.fecha === form.fecha && day.seleccionable);
-  const complete = form.fecha && selectedDay && form.horaInicio && form.horaFin && form.horaInicio < form.horaFin;
-  return <ConfirmDialog open={Boolean(turno)} onOpenChange={(open)=>!open&&onClose()} title="Reprogramar turno" description="Elegí libremente una fecha y hora. Se validarán la disponibilidad efectiva y la capacidad." confirmLabel="Usar nuevo horario" onConfirm={()=>onConfirm({...form,diaAgendaId:selectedDay?.diaAgendaId})} confirmDisabled={!complete}>
-    <div className="grid gap-3 py-2 sm:grid-cols-2">
-      <div className="sm:col-span-2">
-        <Label>Fecha</Label>
-        <Input type="date" value={form.fecha} onChange={(e)=>setForm({...form,fecha:e.target.value})}/>
-        {form.fecha && days && !selectedDay && <p className="mt-1 text-xs text-destructive">Ese día no está habilitado para recibir turnos.</p>}
-      </div>
-      <div>
-        <Label>Desde</Label>
-        <TimeWheelPicker
-          value={form.horaInicio}
-          onChange={(val) => setForm({ ...form, horaInicio: val })}
-          minuteStep={15}
-          aria-label="Hora de inicio para reprogramar"
-        />
-      </div>
-      <div>
-        <Label>Hasta</Label>
-        <TimeWheelPicker
-          value={form.horaFin}
-          onChange={(val) => setForm({ ...form, horaFin: val })}
-          minuteStep={15}
-          aria-label="Hora de fin para reprogramar"
-        />
-      </div>
-      <div className="sm:col-span-2">
-        <Label>Observación opcional</Label>
-        <Textarea value={form.observacion} onChange={(e)=>setForm({...form,observacion:e.target.value})}/>
-      </div>
-    </div>
-  </ConfirmDialog>;
-}

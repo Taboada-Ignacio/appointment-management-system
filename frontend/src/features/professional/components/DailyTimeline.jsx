@@ -43,6 +43,47 @@ function instantTime(value, timezone) {
   }).format(new Date(value));
 }
 
+function layoutOverlappingAppointments(appointments) {
+  const sorted = [...appointments].sort((a, b) => {
+    const startDifference = timeToMinutes(a.horaInicio) - timeToMinutes(b.horaInicio);
+    if (startDifference !== 0) return startDifference;
+    return timeToMinutes(a.horaFin) - timeToMinutes(b.horaFin);
+  });
+
+  const groups = [];
+  let group = [];
+  let groupEnd = -1;
+
+  for (const appointment of sorted) {
+    const start = timeToMinutes(appointment.horaInicio);
+    const end = timeToMinutes(appointment.horaFin);
+    if (group.length > 0 && start >= groupEnd) {
+      groups.push(group);
+      group = [];
+      groupEnd = -1;
+    }
+    group.push(appointment);
+    groupEnd = Math.max(groupEnd, end);
+  }
+  if (group.length > 0) groups.push(group);
+
+  return groups.flatMap((overlappingGroup) => {
+    const laneEnds = [];
+    const positioned = overlappingGroup.map((appointment) => {
+      const start = timeToMinutes(appointment.horaInicio);
+      let lane = laneEnds.findIndex((end) => end <= start);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(timeToMinutes(appointment.horaFin));
+      } else {
+        laneEnds[lane] = timeToMinutes(appointment.horaFin);
+      }
+      return { ...appointment, lane };
+    });
+    return positioned.map((appointment) => ({ ...appointment, laneCount: laneEnds.length }));
+  });
+}
+
 export function DailyTimeline({
   day = null,
   timezone = professionalContext.timezone,
@@ -142,6 +183,7 @@ export function DailyTimeline({
     horaInicio: instantTime(appointment.inicioEstimado, timezone),
     horaFin: instantTime(appointment.finEstimado, timezone),
   })).filter((appointment) => appointment.horaInicio && appointment.horaFin);
+  const positionedAppointments = layoutOverlappingAppointments(appointmentSlots);
   const intervalosVisibles = [...todasBrechas, ...bloqueosHorario, ...habilitaciones, ...candidateSlots, ...appointmentSlots];
   if (intervalosVisibles.length > 0) {
     const startMinutesList = intervalosVisibles.map((b) => timeToMinutes(b.horaInicio));
@@ -301,7 +343,7 @@ export function DailyTimeline({
     );
   });
 
-  const renderAppointments = () => appointmentSlots.map((appointment, idx) => {
+  const renderAppointments = () => positionedAppointments.map((appointment, idx) => {
     const startMin = timeToMinutes(appointment.horaInicio);
     const endMin = timeToMinutes(appointment.horaFin);
     const adjustedStart = Math.max(startHour * 60, startMin);
@@ -310,8 +352,11 @@ export function DailyTimeline({
     const patient = appointment.cliente
       ? `${appointment.cliente.nombre || ''} ${appointment.cliente.apellido || ''}`.trim()
       : 'Cliente';
-    const selected = String(selectedAppointmentId) === String(appointment.id);
+    const appointmentId = appointment.id ?? appointment.turnoId;
+    const selected = String(selectedAppointmentId) === String(appointmentId);
     const AppointmentElement = onSelectAppointment ? 'button' : 'div';
+    const laneWidth = 100 / appointment.laneCount;
+    const laneOffset = appointment.lane * laneWidth;
     const appointmentHeight = Math.max(
       30,
       ((adjustedEnd - adjustedStart) / totalMinutes) * timelineHeight,
@@ -324,8 +369,16 @@ export function DailyTimeline({
         onClick={onSelectAppointment ? () => onSelectAppointment(appointment) : undefined}
         aria-pressed={onSelectAppointment ? selected : undefined}
         data-layout={compact ? 'compact' : 'stacked'}
-        className={`absolute left-16 right-3 z-15 flex justify-center overflow-hidden rounded-md border px-2 text-left text-[10px] font-semibold shadow-sm transition ${compact ? 'flex-row items-center gap-2 whitespace-nowrap' : 'flex-col items-start'} ${selected ? 'border-primary bg-primary text-primary-foreground ring-2 ring-primary/30' : 'border-sky-600 bg-sky-100 text-sky-950 dark:bg-sky-950 dark:text-sky-100'} ${onSelectAppointment ? 'cursor-pointer hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
-        style={{ top: `${((adjustedStart - startHour * 60) / totalMinutes) * 100}%`, height: `${((adjustedEnd - adjustedStart) / totalMinutes) * 100}%`, minHeight: '30px' }}
+        data-overlap-lane={appointment.lane}
+        data-overlap-lanes={appointment.laneCount}
+        className={`absolute z-15 flex justify-center overflow-hidden rounded-md border px-2 text-left text-[10px] font-semibold shadow-sm transition ${compact ? 'flex-row items-center gap-2 whitespace-nowrap' : 'flex-col items-start'} ${selected ? 'border-primary bg-primary text-primary-foreground ring-2 ring-primary/30' : 'border-sky-600 bg-sky-100 text-sky-950 dark:bg-sky-950 dark:text-sky-100'} ${onSelectAppointment ? 'cursor-pointer hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''}`}
+        style={{
+          top: `${((adjustedStart - startHour * 60) / totalMinutes) * 100}%`,
+          height: `${((adjustedEnd - adjustedStart) / totalMinutes) * 100}%`,
+          minHeight: '30px',
+          left: `calc(4rem + ${laneOffset}% - ${(laneOffset * 4.75) / 100}rem)`,
+          width: `calc(${laneWidth}% - ${(laneWidth * 4.75) / 100}rem)`,
+        }}
         aria-label={`Turno asignado de ${patient}, ${formatTimeRange(appointment.horaInicio, appointment.horaFin)}`}
       >
         <span className="shrink-0">{formatTimeRange(appointment.horaInicio, appointment.horaFin)}</span>

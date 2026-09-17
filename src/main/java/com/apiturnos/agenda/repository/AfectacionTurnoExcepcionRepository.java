@@ -13,6 +13,8 @@ public interface AfectacionTurnoExcepcionRepository extends JpaRepository<Afecta
     Optional<AfectacionTurnoExcepcion> findByIdAndExcepcionAgendaProfesionalId(Long id, Long profesionalId);
     List<AfectacionTurnoExcepcion> findByExcepcionAgendaIdOrderByIdAsc(Long excepcionId);
 
+    void deleteByExcepcionAgendaId(Long excepcionId);
+
     @Query("""
         SELECT a FROM AfectacionTurnoExcepcion a
         JOIN FETCH a.excepcionAgenda e
