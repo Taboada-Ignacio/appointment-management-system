@@ -32,6 +32,12 @@ public class Configuracion extends AuditableEntity {
     @Column(name = "duracion_aproximada_por_turno", nullable = false)
     private Integer duracionAproximadaPorTurno = 30;
 
+    @Column(name = "todos_los_turnos_pendientes_verificacion", nullable = false)
+    private Boolean todosLosTurnosPendientesVerificacion = false;
+
+    @Column(name = "permitir_multiples_turnos_por_cliente_en_dia", nullable = false)
+    private Boolean permitirMultiplesTurnosPorClienteEnDia = false;
+
     @Column(name = "agenda_solo_manejada_por_profesional", nullable = false)
     private Boolean agendaSoloManejadaPorProfesional = false;
 
@@ -99,4 +105,8 @@ public class Configuracion extends AuditableEntity {
     public int hashCode() {
         return getClass().hashCode();
     }
+    public Boolean getPermitirMultiplesTurnosPorClienteEnDia() { return permitirMultiplesTurnosPorClienteEnDia; }
+    public void setPermitirMultiplesTurnosPorClienteEnDia(Boolean permitir) { this.permitirMultiplesTurnosPorClienteEnDia = permitir; }
+    public Boolean getTodosLosTurnosPendientesVerificacion() { return todosLosTurnosPendientesVerificacion; }
+    public void setTodosLosTurnosPendientesVerificacion(Boolean valor) { this.todosLosTurnosPendientesVerificacion = valor; }
 }

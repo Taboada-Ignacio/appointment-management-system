@@ -39,6 +39,21 @@ public class RegistrarConfiguracionProfesional {
     public Configuracion ejecutar(Long profesionalId, Integer cantidadMaxTurnos,
                                   Integer duracionAproximada, Boolean agendaSoloManejadaPorProfesional,
                                   Integer umbralCancelacionHoras, String usuario) {
+        return ejecutar(profesionalId,cantidadMaxTurnos,duracionAproximada,agendaSoloManejadaPorProfesional,umbralCancelacionHoras,null,usuario);
+    }
+
+    @Transactional
+    public Configuracion ejecutar(Long profesionalId, Integer cantidadMaxTurnos,
+            Integer duracionAproximada, Boolean agendaSoloManejadaPorProfesional,
+            Integer umbralCancelacionHoras, Boolean permitirMultiplesTurnosPorClienteEnDia, String usuario) {
+        return ejecutar(profesionalId, cantidadMaxTurnos, duracionAproximada, agendaSoloManejadaPorProfesional, umbralCancelacionHoras, permitirMultiplesTurnosPorClienteEnDia, null, usuario);
+    }
+
+    @Transactional
+    public Configuracion ejecutar(Long profesionalId, Integer cantidadMaxTurnos,
+            Integer duracionAproximada, Boolean agendaSoloManejadaPorProfesional,
+            Integer umbralCancelacionHoras, Boolean permitirMultiplesTurnosPorClienteEnDia,
+            Boolean todosLosTurnosPendientesVerificacion, String usuario) {
         if (profesionalId == null) {
             throw new NegocioException("El ID del profesional es obligatorio");
         }
@@ -75,12 +90,16 @@ public class RegistrarConfiguracionProfesional {
             config.setUmbralCancelacionHoras(umbralCancelacionHoras);
         }
 
+        if (permitirMultiplesTurnosPorClienteEnDia != null) config.setPermitirMultiplesTurnosPorClienteEnDia(permitirMultiplesTurnosPorClienteEnDia);
+        if (todosLosTurnosPendientesVerificacion != null) config.setTodosLosTurnosPendientesVerificacion(todosLosTurnosPendientesVerificacion);
         config = configuracionRepository.save(config);
 
         registradorAuditoria.registrar("PROFESIONAL", "Configuracion", config.getId(),
                 OperacionAuditoria.CREATE, usuario, profesionalId,
                 "Configuración registrada: maxTurnos=" + config.getCantidadMaxTurnosALaVez() +
                 ", duracion=" + config.getDuracionAproximadaPorTurno() +
+                ", todosLosTurnosPendientesVerificacion=" + config.getTodosLosTurnosPendientesVerificacion() +
+                ", permitirMultiplesTurnosPorClienteEnDia=" + config.getPermitirMultiplesTurnosPorClienteEnDia() +
                 ", umbralCancelacionHoras=" + config.getUmbralCancelacionHoras());
 
         return config;

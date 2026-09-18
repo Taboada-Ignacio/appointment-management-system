@@ -1,7 +1,8 @@
 import { LoaderCircle, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { professionalContext } from '@/config/professional';
@@ -47,7 +48,12 @@ export function ProfessionalLayout() {
   const agendaState = useAgendaMonth(current.year, current.month);
   const { data: config, isLoading: isLoadingConfig } = useProfessionalConfig(professionalContext.id);
   const { data: agendas, isLoading: isLoadingAgendas } = useAnnualAgendas();
+  const pendingClientsQuery = useQuery({ queryKey: ['professional', professionalContext.id, 'pending-clients-count'], queryFn: () => api.get(`/api/profesionales/${professionalContext.id}/clientes?estado=PENDIENTE_DE_VERIFICACION&page=0&size=1`) });
   const affectedQuery = useAffectedAppointments();
+  const pendingVerificationQuery = useQuery({
+    queryKey: ['professional', professionalContext.id, 'pending-verification-count'],
+    queryFn: () => api.get(`/api/profesionales/${professionalContext.id}/turnos/pendientes-verificacion?page=0&size=1`),
+  });
   const pendingAffectedCount = affectedQuery.data?.filter((item) => item.resolucion === 'PENDIENTE').length;
 
   const hasConfig = Boolean(config);
@@ -102,6 +108,8 @@ export function ProfessionalLayout() {
         hasAnnualAgenda={Boolean(agendaState.agenda)}
         returnFocusRef={menuButtonRef}
         pendingAffectedCount={pendingAffectedCount}
+        pendingClientsCount={pendingClientsQuery.data?.totalElements}
+        pendingVerificationCount={pendingVerificationQuery.data?.totalElements}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed((prev) => !prev)}
       />

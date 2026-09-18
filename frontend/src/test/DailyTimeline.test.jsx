@@ -4,6 +4,30 @@ import { describe, it, expect, vi } from 'vitest';
 import { DailyTimeline } from '../features/professional/components/DailyTimeline';
 
 describe('DailyTimeline Component', () => {
+  it('oculta turnos asignados y pendientes en autogestión y permite seleccionar intervalos', () => {
+    const onSelectCandidate = vi.fn();
+    const slot = { horaInicio: '09:00', horaFin: '09:30' };
+    render(
+      <DailyTimeline
+        publicBooking
+        showIntegrationNotice={false}
+        day={{ fecha: '2026-09-15', estadoActual: 'ACTIVO', brechas: [{ horaInicio: '09:00', horaFin: '10:00' }] }}
+        timezone="America/Argentina/Buenos_Aires"
+        candidateSlots={[slot]}
+        onSelectCandidate={onSelectCandidate}
+        appointments={[
+          { id: 44, estadoActual: 'ASIGNADO', inicioEstimado: '2026-09-15T22:00:00Z', finEstimado: '2026-09-15T22:30:00Z', cliente: { nombre: 'Ana', apellido: 'Paz' } },
+          { id: 45, estadoActual: 'PENDIENTE_DE_APROBACION', inicioEstimado: '2026-09-15T12:30:00Z', finEstimado: '2026-09-15T13:00:00Z', cliente: { nombre: 'Luis', apellido: 'Perez' } },
+        ]}
+      />
+    );
+    expect(screen.queryByLabelText(/Turno asignado/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ana Paz|Luis Perez/)).not.toBeInTheDocument();
+    expect(screen.queryByText('19:00')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Seleccionar 09:00/ }));
+    expect(onSelectCandidate).toHaveBeenCalledWith(slot);
+  });
+
   it('ofrece controles de zoom aun cuando el padre no lo controla', () => {
     render(
       <DailyTimeline

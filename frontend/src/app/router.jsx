@@ -1,3 +1,4 @@
+import { ProfessionalDirectoryPage } from '../features/professional/pages/ProfessionalDirectoryPage';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProfessionalLayout } from '../features/professional/components/ProfessionalLayout';
 import { MyDayPage } from '../features/professional/pages/MyDayPage';
@@ -10,6 +11,8 @@ import { NewAppointmentPage } from '../features/professional/pages/NewAppointmen
 import { RescheduleAppointmentPage } from '../features/professional/pages/RescheduleAppointmentPage';
 import { CompleteRescheduleAppointmentPage } from '../features/professional/pages/CompleteRescheduleAppointmentPage';
 import { NotFoundPage } from '../features/professional/pages/NotFoundPage';
+import { BookingPage } from '../features/selfService/BookingPage';
+import { SelfServicePage } from '../features/professional/pages/SelfServicePage';
 
 /**
  * Route configuration factory.
@@ -17,6 +20,7 @@ import { NotFoundPage } from '../features/professional/pages/NotFoundPage';
  */
 export function createRoutes() {
   return [
+    { path: '/reservar', element: <BookingPage /> },
     {
       path: '/',
       element: <Navigate to="/profesional/mi-dia" replace />,
@@ -26,6 +30,9 @@ export function createRoutes() {
       element: <ProfessionalLayout />,
       children: [
         { index: true, element: <Navigate to="/profesional/mi-dia" replace /> },
+        { path: 'turnos-pendientes', element: <ProfessionalDirectoryPage key="pending" /> },
+        { path: 'clientes-pendientes', element: <ProfessionalDirectoryPage key="pending-clients" clients pendingClients /> },
+        { path: 'clientes', element: <ProfessionalDirectoryPage key="clients" clients /> },
         { path: 'mi-dia', element: <MyDayPage /> },
         { path: 'turnos/nuevo', element: <NewAppointmentPage /> },
         { path: 'turnos/:appointmentId/cambiar-dia', element: <RescheduleAppointmentPage /> },
@@ -40,6 +47,7 @@ export function createRoutes() {
         { path: 'ausencias/excepciones', element: <AbsenceManagementPage key="exceptions" section="exceptions" /> },
         { path: 'turnos-afectados', element: <AbsenceManagementPage section="affected" /> },
         { path: 'configuracion', element: <SettingsPage /> },
+        { path: 'autogestion', element: <SelfServicePage /> },
       ],
     },
     {

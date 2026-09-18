@@ -26,6 +26,7 @@ public class CrearTurnoManual {
     private final RegistradorNotificacion registradorNotificacion;
     private final TokenConfirmacionTurnoManual tokenConfirmacion;
     private final DiaAgendaRepository diaAgendaRepository;
+    private final com.apiturnos.profesional.repository.ConfiguracionRepository configuracionRepository;
 
     public CrearTurnoManual(
             ValidadorCrearTurnoManual validador,
@@ -36,7 +37,6 @@ public class CrearTurnoManual {
         this(validador, turnoRepository, gestorCambioEstado, registradorAuditoria, registradorNotificacion, null, null);
     }
 
-    @Autowired
     public CrearTurnoManual(
             ValidadorCrearTurnoManual validador,
             TurnoRepository turnoRepository,
@@ -45,6 +45,16 @@ public class CrearTurnoManual {
             RegistradorNotificacion registradorNotificacion,
             TokenConfirmacionTurnoManual tokenConfirmacion,
             DiaAgendaRepository diaAgendaRepository) {
+        this(validador,turnoRepository,gestorCambioEstado,registradorAuditoria,registradorNotificacion,tokenConfirmacion,diaAgendaRepository,null);
+    }
+
+    @Autowired
+    public CrearTurnoManual(ValidadorCrearTurnoManual validador, TurnoRepository turnoRepository,
+            GestorCambioEstado gestorCambioEstado, RegistradorAuditoria registradorAuditoria,
+            RegistradorNotificacion registradorNotificacion, TokenConfirmacionTurnoManual tokenConfirmacion,
+            DiaAgendaRepository diaAgendaRepository,
+            com.apiturnos.profesional.repository.ConfiguracionRepository configuracionRepository) {
+        this.configuracionRepository = configuracionRepository;
         this.validador = validador;
         this.turnoRepository = turnoRepository;
         this.gestorCambioEstado = gestorCambioEstado;
@@ -72,6 +82,9 @@ public class CrearTurnoManual {
             diaAgendaRepository.findByIdForUpdate(solicitud.diaAgendaId());
         }
         ValidadorCrearTurnoManual.ContextoValidado contexto = validador.validar(solicitud);
+
+        ReglaTurnosClienteDia.validar(configuracionRepository == null ? null : configuracionRepository.findByProfesionalId(solicitud.profesionalId()).orElse(null),
+                contexto.diaAgenda().getId(), contexto.cliente().getId(), turnoRepository, gestorCambioEstado);
 
         if (!contexto.advertencias().isEmpty() && tokenConfirmacion != null) {
             // En produccion la confirmacion siempre queda vinculada a la
@@ -109,14 +122,18 @@ public class CrearTurnoManual {
         turno.setObservaciones(solicitud.observaciones());
         turno = turnoRepository.save(turno);
 
+        boolean requiereVerificacion = configuracionRepository != null && configuracionRepository
+                .findByProfesionalId(solicitud.profesionalId())
+                .map(config -> Boolean.TRUE.equals(config.getTodosLosTurnosPendientesVerificacion())).orElse(false);
+        String estadoInicial = requiereVerificacion ? "PENDIENTE_DE_APROBACION" : "ASIGNADO";
         gestorCambioEstado.registrarCambioInicial(
                 AmbitoEstado.TURNO,
                 turno.getId(),
-                "ASIGNADO",
+                estadoInicial,
                 solicitud.usuario(),
                 "Turno creado manualmente por el profesional");
 
-        String detalleAuditoria = "TURNO_CREADO_MANUALMENTE; estado=ASIGNADO; tipoAtencion="
+        String detalleAuditoria = "TURNO_CREADO_MANUALMENTE; estado=" + estadoInicial + "; tipoAtencion="
                 + contexto.tipoAtencion().getNombre()
                 + "; duracionConfigurada=" + contexto.tipoAtencion().getDuracionMinutos()
                 + "; duracionSolicitada=" + Duration.between(solicitud.inicioEstimado(), solicitud.finEstimado()).toMinutes()
@@ -138,7 +155,7 @@ public class CrearTurnoManual {
                 contexto.cliente(),
                 turno,
                 TipoNotificacion.CONFIRMACION_TURNO,
-                "Su turno ha sido asignado para el " + contexto.diaAgenda().getFecha()
+                (requiereVerificacion ? "Su turno espera aprobación para el " : "Su turno ha sido asignado para el ") + contexto.diaAgenda().getFecha()
                         + " a las " + contexto.datosConfirmacion().horaInicio());
 
         return ResultadoCrearTurnoManual.creado(

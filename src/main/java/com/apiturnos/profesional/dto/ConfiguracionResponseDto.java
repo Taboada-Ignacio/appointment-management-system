@@ -9,6 +9,9 @@ public class ConfiguracionResponseDto {
     private Long profesionalId;
     private Integer cantidadMaxTurnosALaVez;
     private Integer duracionAproximadaPorTurno;
+    private Boolean todosLosTurnosPendientesVerificacion;
+    private Boolean permitirMultiplesTurnosPorClienteEnDia;
+
     private Boolean agendaSoloManejadaPorProfesional;
     private Integer umbralCancelacionHoras;
     private Instant creadoEn;
@@ -24,6 +27,8 @@ public class ConfiguracionResponseDto {
             this.cantidadMaxTurnosALaVez = configuracion.getCantidadMaxTurnosALaVez();
             this.duracionAproximadaPorTurno = configuracion.getDuracionAproximadaPorTurno();
             this.agendaSoloManejadaPorProfesional = configuracion.getAgendaSoloManejadaPorProfesional();
+            this.permitirMultiplesTurnosPorClienteEnDia = configuracion.getPermitirMultiplesTurnosPorClienteEnDia();
+            this.todosLosTurnosPendientesVerificacion = configuracion.getTodosLosTurnosPendientesVerificacion();
             this.umbralCancelacionHoras = configuracion.getUmbralCancelacionHoras();
             this.creadoEn = configuracion.getCreadoEn();
             this.actualizadoEn = configuracion.getActualizadoEn();
@@ -93,5 +98,9 @@ public class ConfiguracionResponseDto {
     public void setActualizadoEn(Instant actualizadoEn) {
         this.actualizadoEn = actualizadoEn;
     }
+    public Boolean getPermitirMultiplesTurnosPorClienteEnDia() { return permitirMultiplesTurnosPorClienteEnDia; }
+    public void setPermitirMultiplesTurnosPorClienteEnDia(Boolean permitir) { this.permitirMultiplesTurnosPorClienteEnDia = permitir; }
+    public Boolean getTodosLosTurnosPendientesVerificacion() { return todosLosTurnosPendientesVerificacion; }
+    public void setTodosLosTurnosPendientesVerificacion(Boolean valor) { this.todosLosTurnosPendientesVerificacion = valor; }
 }
 

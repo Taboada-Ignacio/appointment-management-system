@@ -36,6 +36,8 @@ function renderWithRouter(initialEntries = ['/'], config = mockConfig, agendas =
     { afectacionId: 1, resolucion: 'PENDIENTE' },
     { afectacionId: 2, resolucion: 'REPROGRAMADO' },
   ]);
+  queryClient.setQueryData(['professional', 1, 'pending-clients-count'], { totalElements: 2 });
+  queryClient.setQueryData(['professional', 1, 'pending-verification-count'], { totalElements: 23 });
 
   const router = createMemoryRouter(createRoutes(), { initialEntries });
 
@@ -64,6 +66,10 @@ describe('Routing & Shell Navigation', () => {
     expect(screen.getByRole('link', { name: /Configuración/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Cambiar mi semana/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Turnos afectados.*1 turno pendiente/i })).toBeInTheDocument();
+    const pendingLink = screen.getByRole('link', { name: /Turnos pendientes de verificación.*23 turnos pendientes/i });
+    expect(pendingLink).toHaveClass('bg-red-500/10');
+    expect(pendingLink).toHaveClass('h-auto');
+    expect(screen.getByRole('link', { name: /Clientes pendientes de verificación.*2 clientes pendientes/i })).toHaveClass('bg-red-500/10');
   });
 
   it('despliega las opciones del menú de ausencias y modificaciones sin navegar', async () => {

@@ -115,6 +115,8 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
     savedConfig ? String(savedConfig.umbralCancelacionHoras) : '24'
   );
 
+  const [todosPendientes, setTodosPendientes] = useState(() => Boolean(savedConfig?.todosLosTurnosPendientesVerificacion));
+  const [permitirMultiplesTurnos, setPermitirMultiplesTurnos] = useState(() => Boolean(savedConfig?.permitirMultiplesTurnosPorClienteEnDia));
   const [agendaSoloManejada, setAgendaSoloManejada] = useState(
     () => savedConfig?.agendaSoloManejadaPorProfesional || false
   );
@@ -194,6 +196,8 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
         cantidadMaxTurnosALaVez: finalCapacity,
         duracionAproximadaPorTurno: finalDuration,
         agendaSoloManejadaPorProfesional: agendaSoloManejada,
+        permitirMultiplesTurnosPorClienteEnDia: permitirMultiplesTurnos,
+        todosLosTurnosPendientesVerificacion: todosPendientes,
         umbralCancelacionHoras: finalThreshold,
       };
 
@@ -540,6 +544,8 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
                   </div>
                 </div>
 
+                <div className="flex items-center justify-between gap-4 rounded-xl border bg-card/40 p-4 sm:p-5"><div><Label htmlFor="initial-all-pending">Todos los turnos pasan a pendiente verificación</Label><p className="mt-1 text-xs text-muted-foreground">Cada nuevo turno requiere aprobación manual, independientemente del estado del cliente.</p></div><Switch id="initial-all-pending" checked={todosPendientes} onCheckedChange={setTodosPendientes} /></div>
+                <div className="flex items-center justify-between gap-4 rounded-xl border bg-card/40 p-4 sm:p-5"><div><Label htmlFor="initial-multiple-turns">Permitir más de un turno por cliente en un día</Label><p className="mt-1 text-xs text-muted-foreground">Si está desactivado, cada cliente puede registrar un solo turno para el mismo día.</p></div><Switch id="initial-multiple-turns" checked={permitirMultiplesTurnos} onCheckedChange={setPermitirMultiplesTurnos} /></div>
                 {/* Field 4: Agenda exclusiva */}
                 <div className="grid gap-4 rounded-xl border bg-card/40 p-4 transition-colors sm:p-5 lg:grid-cols-12 lg:gap-6">
                   <div className="flex flex-col justify-between gap-3 lg:col-span-7">
@@ -873,6 +879,8 @@ export function OnboardingWizard({ initialStep = 1, savedConfig = null, onComple
                             : 'Autogestión permitida'
                         }
                       />
+                      <SummaryItem label="Todos los turnos requieren verificación" value={(savedSummary?.todosLosTurnosPendientesVerificacion ?? todosPendientes) ? 'Sí' : 'No'} />
+                      <SummaryItem label="Más de un turno por cliente en un día" value={(savedSummary?.permitirMultiplesTurnosPorClienteEnDia ?? permitirMultiplesTurnos) ? 'Permitido' : 'No permitido'} />
                       <SummaryItem
                         label="Días de atención configurados"
                         value={`${calendarSummary?.diasLaborablesPorSemana ?? weeklyDraft.diasSemana.length} días laborables`}

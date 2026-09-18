@@ -5,6 +5,7 @@ import {
   CalendarX2,
   ChevronRight,
   Clock3,
+  Link2,
   PanelLeftClose,
   PanelLeftOpen,
   Settings2,
@@ -56,12 +57,16 @@ import { cn } from '@/lib/utils';
 
 const navigation = [
   { to: '/profesional/turnos/nuevo', label: 'Nuevo turno', icon: CalendarPlus },
+  { to: '/profesional/turnos-pendientes', label: 'Turnos pendientes de verificación', icon: CalendarPlus },
   { to: '/profesional/mi-dia', label: 'Mi día', icon: Clock3 },
   { to: '/profesional/mi-mes', label: 'Mi mes', icon: CalendarDays },
   { to: '/profesional/mi-anio', label: 'Mi año', icon: CalendarRange },
   { type: 'absences', label: 'Ausencias y Modificaciones Excepcionales', icon: CalendarX2 },
   { to: '/profesional/turnos-afectados', label: 'Turnos afectados', icon: UserRoundX },
+  { to: '/profesional/clientes', label: 'Mis clientes', icon: UserRound },
+  { to: '/profesional/clientes-pendientes', label: 'Clientes pendientes de verificación', icon: UserRound },
   { to: '/profesional/configuracion', label: 'Configuración', icon: Settings2 },
+  { to: '/profesional/autogestion', label: 'Autogestión', icon: Link2 },
   { to: '/profesional/mi-semana', label: 'Cambiar mi semana', icon: SlidersHorizontal },
 ];
 
@@ -160,6 +165,8 @@ function ProfileSummary({ isCollapsed = false }) {
 function NavigationContent({
   hasAnnualAgenda,
   pendingAffectedCount,
+  pendingVerificationCount,
+  pendingClientsCount,
   isCollapsed = false,
   onToggleCollapse = null,
 }) {
@@ -168,7 +175,6 @@ function NavigationContent({
   const [collapsedPath, setCollapsedPath] = useState(null);
   const [manuallyOpen, setManuallyOpen] = useState(false);
   const absencesOpen = inAbsences ? collapsedPath !== pathname : manuallyOpen;
-  const pendingCount = pendingAffectedCount;
 
   return (
     <>
@@ -321,7 +327,11 @@ function NavigationContent({
                 }
 
                 const active = pathname === to;
-                const affectedAlert = to === '/profesional/turnos-afectados' && pendingCount > 0;
+                const pendingCount = to === '/profesional/turnos-pendientes'
+                  ? pendingVerificationCount
+                  : to === '/profesional/clientes-pendientes' ? pendingClientsCount
+                  : to === '/profesional/turnos-afectados' ? pendingAffectedCount : 0;
+                const affectedAlert = pendingCount > 0;
 
                 if (isCollapsed) {
                   return (
@@ -359,7 +369,7 @@ function NavigationContent({
                               {affectedAlert && (
                                 <span
                                   className="absolute -top-1.5 -right-1.5 z-20 flex min-w-5 h-5 px-1 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow-md ring-2 ring-sidebar select-none tabular-nums"
-                                  aria-label={`${pendingCount} ${pendingCount === 1 ? 'turno pendiente' : 'turnos pendientes'}`}
+                                  aria-label={`${pendingCount} ${to === '/profesional/clientes-pendientes' ? pendingCount === 1 ? 'cliente pendiente' : 'clientes pendientes' : pendingCount === 1 ? 'turno pendiente' : 'turnos pendientes'}`}
                                 >
                                   {pendingCount}
                                 </span>
@@ -383,6 +393,7 @@ function NavigationContent({
                       isActive={active}
                       className={cn(
                         'h-10 rounded-lg px-3 font-semibold text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground',
+                        ['/profesional/turnos-pendientes', '/profesional/clientes-pendientes'].includes(to) && 'h-auto min-h-11 py-2.5 items-start overflow-visible [&>span]:whitespace-normal [&>span]:overflow-visible [&>span]:text-clip',
                         affectedAlert && !active && 'bg-red-500/10 text-red-300 hover:bg-red-500/20'
                       )}
                     >
@@ -395,6 +406,7 @@ function NavigationContent({
                       >
                         <Icon
                           className={cn(
+                            ['/profesional/turnos-pendientes', '/profesional/clientes-pendientes'].includes(to) && 'mt-0.5 shrink-0',
                             active
                               ? 'text-sidebar-primary-foreground'
                               : affectedAlert
@@ -403,14 +415,14 @@ function NavigationContent({
                           )}
                           aria-hidden="true"
                         />
-                        <span className="flex-1 truncate">{label}</span>
+                        <span className={cn('min-w-0 flex-1', ['/profesional/turnos-pendientes', '/profesional/clientes-pendientes'].includes(to) ? 'whitespace-normal break-words leading-snug text-xs sm:text-sm' : 'truncate')}>{label}</span>
                         {affectedAlert && (
                           <span
                             className={cn(
-                              'flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-red-600 text-center text-[11px] font-bold text-white shadow-xs tabular-nums',
+                              'flex shrink-0 min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-red-600 text-center text-[11px] font-bold text-white shadow-xs tabular-nums',
                               active && 'ring-2 ring-white/60'
                             )}
-                            aria-label={`${pendingCount} ${pendingCount === 1 ? 'turno pendiente' : 'turnos pendientes'}`}
+                            aria-label={`${pendingCount} ${to === '/profesional/clientes-pendientes' ? pendingCount === 1 ? 'cliente pendiente' : 'clientes pendientes' : pendingCount === 1 ? 'turno pendiente' : 'turnos pendientes'}`}
                           >
                             {pendingCount}
                           </span>
@@ -489,6 +501,8 @@ export function ProfessionalSidebar({
   hasAnnualAgenda = true,
   returnFocusRef = null,
   pendingAffectedCount,
+  pendingVerificationCount,
+  pendingClientsCount,
   isCollapsed = false,
   onToggleCollapse = null,
 }) {
@@ -506,6 +520,8 @@ export function ProfessionalSidebar({
           <NavigationContent
             hasAnnualAgenda={hasAnnualAgenda}
             pendingAffectedCount={pendingAffectedCount}
+            pendingVerificationCount={pendingVerificationCount}
+                pendingClientsCount={pendingClientsCount}
             isCollapsed={isCollapsed}
             onToggleCollapse={onToggleCollapse}
           />
@@ -546,6 +562,8 @@ export function ProfessionalSidebar({
               <NavigationContent
                 hasAnnualAgenda={hasAnnualAgenda}
                 pendingAffectedCount={pendingAffectedCount}
+                pendingVerificationCount={pendingVerificationCount}
+                pendingClientsCount={pendingClientsCount}
                 isCollapsed={false}
               />
             </div>

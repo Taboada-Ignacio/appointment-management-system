@@ -17,6 +17,28 @@ import jakarta.persistence.LockModeType;
 
 @Repository
 public interface TurnoRepository extends JpaRepository<Turno, Long> {
+    @Query(value = """
+            SELECT t FROM Turno t
+            JOIN FETCH t.diaAgenda d JOIN FETCH d.mesAgenda m
+            JOIN FETCH m.agendaAnual a JOIN FETCH a.profesional p
+            JOIN FETCH t.cliente LEFT JOIN FETCH t.tipoAtencion
+            WHERE p.id=:profesionalId AND EXISTS (
+                SELECT ce.id FROM CambioEstado ce
+                WHERE ce.ambito=com.apiturnos.estado.model.AmbitoEstado.TURNO
+                    AND ce.entidadId=t.id AND ce.fechaHoraFin IS NULL
+                    AND ce.estado.nombre='PENDIENTE_DE_APROBACION')
+            ORDER BY t.inicioEstimado ASC, t.id ASC
+            """, countQuery = """
+            SELECT count(t) FROM Turno t
+            WHERE t.diaAgenda.mesAgenda.agendaAnual.profesional.id=:profesionalId AND EXISTS (
+                SELECT ce.id FROM CambioEstado ce
+                WHERE ce.ambito=com.apiturnos.estado.model.AmbitoEstado.TURNO
+                    AND ce.entidadId=t.id AND ce.fechaHoraFin IS NULL
+                    AND ce.estado.nombre='PENDIENTE_DE_APROBACION')
+            """)
+    org.springframework.data.domain.Page<Turno> findPendientesPorProfesional(
+            @Param("profesionalId") Long profesionalId, org.springframework.data.domain.Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT t FROM Turno t WHERE t.id = :id")
     Optional<Turno> findByIdForUpdate(@Param("id") Long id);

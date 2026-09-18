@@ -161,6 +161,8 @@ public class ProfesionalController {
                 body.getDuracionAproximadaPorTurno(),
                 body.getAgendaSoloManejadaPorProfesional(),
                 body.getUmbralCancelacionHoras(),
+                body.getPermitirMultiplesTurnosPorClienteEnDia(),
+                body.getTodosLosTurnosPendientesVerificacion(),
                 usuario);
         return ResponseEntity.status(HttpStatus.CREATED).body(new ConfiguracionResponseDto(configuracion));
     }
@@ -178,6 +180,8 @@ public class ProfesionalController {
                 request.getDuracionAproximadaPorTurno(),
                 request.getAgendaSoloManejadaPorProfesional(),
                 request.getUmbralCancelacionHoras(),
+                request.getPermitirMultiplesTurnosPorClienteEnDia(),
+                request.getTodosLosTurnosPendientesVerificacion(),
                 usuario);
         return ResponseEntity.ok(new ConfiguracionResponseDto(configuracion));
     }

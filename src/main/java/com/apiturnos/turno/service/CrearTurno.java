@@ -112,6 +112,8 @@ public class CrearTurno {
             throw new ClienteNoPerteneceProfesionalException(clienteId, profesionalAgenda.getId());
         }
 
+        ReglaTurnosClienteDia.validar(configuracionRepository.findByProfesionalId(profesionalAgenda.getId()).orElse(null),
+                diaAgendaId, clienteId, turnoRepository, gestorCambioEstado);
         TipoAtencion tipoAtencion = null;
         boolean capacidadExcedida = false;
 
@@ -170,7 +172,8 @@ public class CrearTurno {
         // Determinar estado inicial según cliente
         String estadoCliente = gestorCambioEstado.obtenerNombreEstadoActual(AmbitoEstado.CLIENTE, clienteId);
         String estadoInicialTurno;
-        if ("REQUIERE_APROBACION".equals(estadoCliente)) {
+        if ("REQUIERE_APROBACION".equals(estadoCliente)
+                || (origen == OrigenTurno.CLIENTE_AUTOGESTION && "PENDIENTE_DE_VERIFICACION".equals(estadoCliente))) {
             estadoInicialTurno = "PENDIENTE_DE_APROBACION";
         } else if ("HABILITADO".equals(estadoCliente)) {
             estadoInicialTurno = "ASIGNADO";
@@ -178,6 +181,11 @@ public class CrearTurno {
             throw new EstadoInvalidoException(
                     "El cliente " + clienteId + " tiene estado '" + estadoCliente +
                     "' y no puede solicitar turnos");
+        }
+
+        if (configuracionRepository.findByProfesionalId(profesionalAgenda.getId())
+                .map(config -> Boolean.TRUE.equals(config.getTodosLosTurnosPendientesVerificacion())).orElse(false)) {
+            estadoInicialTurno = "PENDIENTE_DE_APROBACION";
         }
 
         Turno turno = new Turno();

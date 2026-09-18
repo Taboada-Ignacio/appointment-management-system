@@ -25,6 +25,7 @@ services:
     container_name: api-turnos
     environment:
       SERVER_PORT: ${SERVER_PORT:-8080}
+      AUTOGESTION_ENLACE_CLAVE: ${AUTOGESTION_ENLACE_CLAVE:-}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-turnos_db}

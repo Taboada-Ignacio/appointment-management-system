@@ -18,6 +18,7 @@ const EXCEPTION_LABELS = {
 };
 
 export function MonthCalendar({
+  publicBooking = false,
   year,
   month,
   days = [],
@@ -231,8 +232,8 @@ export function MonthCalendar({
                     FINALIZADO: 'F',
                   }[status] || 'I'
                 : null;
-              const accessibleStatus = status ? ` Estado: ${status.toLowerCase().replace('_', ' ')}.` : ' Sin datos de agenda.';
-              const accessibleSummary = cell.data
+              const accessibleStatus = publicBooking ? (cell.data?.seleccionable ? ' Disponible.' : ' No disponible.') : status ? ` Estado: ${status.toLowerCase().replace('_', ' ')}.` : ' Sin datos de agenda.';
+              const accessibleSummary = !publicBooking && cell.data
                 ? ` ${gapCount} brechas horarias. ${appointmentCount} turnos activos.${exceptionTypes.length ? ` Excepciones: ${exceptionTypes.map((type) => EXCEPTION_LABELS[type] || type).join(', ')}.` : ''}`
                 : '';
 
@@ -320,6 +321,7 @@ export function MonthCalendar({
                     )}
                   </div>
 
+                  {publicBooking && <span className="mt-auto text-[9px] text-muted-foreground sm:text-xs">{cell.data?.seleccionable ? 'Disponible' : '—'}</span>}
                   <div className="mt-auto flex w-full flex-col gap-1">
                     {sameTimeUnavailable && (
                       <span className="max-w-full self-start rounded bg-rose-600 px-1 py-0.5 text-[7px] font-black uppercase leading-none text-white sm:text-[8px]">No disponible</span>
@@ -334,7 +336,7 @@ export function MonthCalendar({
                         Horario Modificado
                       </span>
                     )}
-                    {status && (
+                    {!publicBooking && status && (
                       <>
                         <span
                           className={cn(
@@ -353,7 +355,7 @@ export function MonthCalendar({
                       </>
                     )}
 
-                    {cell.data && (
+                    {!publicBooking && cell.data && (
                       <div className="space-y-0.5 text-[9px] font-semibold text-foreground/75 sm:text-[10px]">
                         <span className="block">{gapCount} {gapCount === 1 ? 'brecha' : 'brechas'}</span>
                         <span className="block">{showAvailabilitySummary ? availabilityLabel : `${appointmentCount} ${appointmentCount === 1 ? 'turno activo' : 'turnos activos'}`}</span>

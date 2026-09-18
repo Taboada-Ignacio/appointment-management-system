@@ -85,6 +85,8 @@ function layoutOverlappingAppointments(appointments) {
 }
 
 export function DailyTimeline({
+  publicBooking = false,
+  selectionDisabled = false,
   day = null,
   timezone = professionalContext.timezone,
   onEditGaps = null,
@@ -178,7 +180,7 @@ export function DailyTimeline({
   let startHour = 8;
   let endHour = 18;
 
-  const appointmentSlots = appointments.map((appointment) => ({
+  const appointmentSlots = (publicBooking ? [] : appointments).map((appointment) => ({
     ...appointment,
     horaInicio: instantTime(appointment.inicioEstimado, timezone),
     horaFin: instantTime(appointment.finEstimado, timezone),
@@ -326,19 +328,20 @@ export function DailyTimeline({
       if (warning === 'CAPACIDAD_SUPERADA') return 'Se superará la capacidad simultánea.';
       return warning;
     }).join(' ');
-    const label = `${formatTimeRange(slot.horaInicio, slot.horaFin)}. Ocupación ${slot.turnosConcurrentes}/${slot.capacidadSimultanea}.${warningText ? ` ${warningText}` : ''}`;
+    const label = publicBooking ? `Seleccionar ${formatTimeRange(slot.horaInicio, slot.horaFin)}` : `${formatTimeRange(slot.horaInicio, slot.horaFin)}. Ocupación ${slot.turnosConcurrentes}/${slot.capacidadSimultanea}.${warningText ? ` ${warningText}` : ''}`;
     return (
       <button
         type="button"
         key={`candidate-${slot.horaInicio}-${slot.horaFin}-${idx}`}
         aria-label={label}
         aria-pressed={selected}
+        disabled={selectionDisabled}
         onClick={() => onSelectCandidate?.(slot)}
         className={`absolute left-16 right-3 z-20 flex flex-col items-start justify-center overflow-hidden rounded-md border px-2 text-left text-[10px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? 'border-primary bg-primary text-primary-foreground' : warnings.length ? 'border-amber-500 bg-amber-100 text-amber-950 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-100' : 'border-primary/50 bg-background/95 text-foreground hover:bg-accent'}`}
         style={{ top: `${((adjustedStart - startHour * 60) / totalMinutes) * 100}%`, height: `${((adjustedEnd - adjustedStart) / totalMinutes) * 100}%`, minHeight: '30px' }}
       >
         <span>{formatTimeRange(slot.horaInicio, slot.horaFin)}</span>
-        <span className="font-normal">Ocupación {slot.turnosConcurrentes}/{slot.capacidadSimultanea}</span>
+        {!publicBooking && <span className="font-normal">Ocupación {slot.turnosConcurrentes}/{slot.capacidadSimultanea}</span>}
       </button>
     );
   });
@@ -397,7 +400,7 @@ export function DailyTimeline({
             <h3 className="font-heading text-lg font-semibold tracking-tight">
               {formatDateLong(fecha, timezone)}
             </h3>
-            <StatusBadge status={derivedStatus} />
+            {!publicBooking && <StatusBadge status={derivedStatus} />}
           </div>
         </div>
 
@@ -424,7 +427,14 @@ export function DailyTimeline({
         El backend no expone un endpoint para listar los turnos asignados a este día. La visualización se limita a las brechas horarias de atención configuradas.
       </IntegrationNotice>}
 
-      <section aria-labelledby="daily-availability-title" className="rounded-xl border bg-muted/25 p-4">
+      {publicBooking && <div className="flex items-center justify-end gap-2" aria-label={`Zoom del cronograma: ${zoom}%`}>
+        <span className="mr-2 text-sm text-muted-foreground">Zoom {zoom}%</span>
+        <Button type="button" variant="outline" size="icon" aria-label="Reducir zoom" title="Reducir zoom" disabled={zoom <= 50} onClick={() => changeZoom(-1)}><Minus /></Button>
+        <Button type="button" variant="outline" size="icon" aria-label="Restablecer zoom" title="Restablecer zoom" disabled={zoom === 100} onClick={() => setZoom(100)}><Maximize /></Button>
+        <Button type="button" variant="outline" size="icon" aria-label="Aumentar zoom" title="Aumentar zoom" disabled={zoom >= 300} onClick={() => changeZoom(1)}><Plus /></Button>
+      </div>}
+
+      {!publicBooking && <section aria-labelledby="daily-availability-title" className="rounded-xl border bg-muted/25 p-4">
         <div className="mb-2 flex items-center justify-between gap-3">
           <h4 id="daily-availability-title" className="text-xs font-semibold">
             Señal de disponibilidad
@@ -491,7 +501,7 @@ export function DailyTimeline({
             )}
           </div>
         )}
-      </section>
+      </section>}
 
       <ScrollArea className="relative mt-2 h-[min(68vh,44rem)] min-h-[440px] pr-3">
         {intervalosVisibles.length === 0 ? (
@@ -517,7 +527,7 @@ export function DailyTimeline({
             {renderHourLines()}
             {renderGaps()}
             {renderBlockedGaps()}
-            {renderAppointments()}
+            {!publicBooking && renderAppointments()}
             {renderCandidates()}
 
             {isTodayDay &&

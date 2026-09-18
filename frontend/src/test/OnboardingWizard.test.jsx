@@ -62,10 +62,13 @@ describe('OnboardingWizard Component', () => {
     expect(screen.queryByText('Parámetros de Atención y Turnos')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Volver a parámetros/i }));
     expect(screen.getByText('Parámetros de Atención y Turnos')).toBeInTheDocument();
+    const multipleTurns = screen.getByRole('switch', { name: 'Permitir más de un turno por cliente en un día' });
+    expect(multipleTurns).not.toBeChecked();
+    fireEvent.click(multipleTurns);
     fireEvent.click(screen.getByRole('button', { name: /Aplicar cambios y continuar/i }));
     await waitFor(() => expect(putSpy).toHaveBeenCalledWith(
       '/api/profesionales/1/configuracion',
-      expect.objectContaining({ duracionAproximadaPorTurno: 45 }),
+      expect.objectContaining({ duracionAproximadaPorTurno: 45, permitirMultiplesTurnosPorClienteEnDia: true }),
       expect.anything(),
     ));
 

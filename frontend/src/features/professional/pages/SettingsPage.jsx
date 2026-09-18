@@ -59,6 +59,8 @@ export function SettingsPage() {
       cantidadMaxTurnosALaVez: config.cantidadMaxTurnosALaVez,
       duracionAproximadaPorTurno: config.duracionAproximadaPorTurno,
       agendaSoloManejadaPorProfesional: config.agendaSoloManejadaPorProfesional,
+      permitirMultiplesTurnosPorClienteEnDia: Boolean(config.permitirMultiplesTurnosPorClienteEnDia),
+      todosLosTurnosPendientesVerificacion: Boolean(config.todosLosTurnosPendientesVerificacion),
       umbralCancelacionHoras: config.umbralCancelacionHoras,
     });
   }, [config]);
@@ -143,6 +145,8 @@ export function SettingsPage() {
             <div className="space-y-2"><Label htmlFor="config-duration">Duración aproximada por turno (minutos)</Label><Input id="config-duration" type="number" min="1" required value={configDraft.duracionAproximadaPorTurno} onChange={(event) => setConfigDraft((draft) => ({ ...draft, duracionAproximadaPorTurno: event.target.value }))} /></div>
             <div className="space-y-2"><Label htmlFor="config-capacity">Cantidad máxima de turnos simultáneos</Label><Input id="config-capacity" type="number" min="1" required value={configDraft.cantidadMaxTurnosALaVez} onChange={(event) => setConfigDraft((draft) => ({ ...draft, cantidadMaxTurnosALaVez: event.target.value }))} /></div>
             <div className="space-y-2"><Label htmlFor="config-threshold">Umbral de cancelación (horas)</Label><Input id="config-threshold" type="number" min="0" required value={configDraft.umbralCancelacionHoras} onChange={(event) => setConfigDraft((draft) => ({ ...draft, umbralCancelacionHoras: event.target.value }))} /></div>
+            <div className="flex items-center justify-between gap-4 rounded-xl border p-4"><div><Label htmlFor="config-all-pending">Todos los turnos pasan a pendiente verificación</Label><p className="mt-1 text-xs text-muted-foreground">Cada nuevo turno requiere aprobación manual, independientemente del estado del cliente.</p></div><Switch id="config-all-pending" checked={Boolean(configDraft.todosLosTurnosPendientesVerificacion)} onCheckedChange={checked => setConfigDraft(draft => ({ ...draft, todosLosTurnosPendientesVerificacion: checked }))} /></div>
+            <div className="flex items-center justify-between gap-4 rounded-xl border p-4"><div><Label htmlFor="config-multiple-turns" className="cursor-pointer">Permitir más de un turno por cliente en un día</Label><p className="mt-1 text-xs text-muted-foreground">Si está desactivado, se bloquea el registro de otro turno del mismo cliente para ese día.</p></div><Switch id="config-multiple-turns" checked={Boolean(configDraft.permitirMultiplesTurnosPorClienteEnDia)} onCheckedChange={(checked) => setConfigDraft((draft) => ({ ...draft, permitirMultiplesTurnosPorClienteEnDia: checked }))} /></div>
             <div className="flex items-center justify-between gap-4 rounded-xl border p-4"><Label htmlFor="config-professional-only" className="cursor-pointer">Agenda administrada solo por el profesional</Label><Switch id="config-professional-only" checked={Boolean(configDraft.agendaSoloManejadaPorProfesional)} onCheckedChange={(checked) => setConfigDraft((draft) => ({ ...draft, agendaSoloManejadaPorProfesional: checked }))} /></div>
             <div className="md:col-span-2"><Button type="submit" disabled={updateConfig.isPending}>{updateConfig.isPending ? 'Guardando...' : 'Guardar configuración'}</Button></div>
           </form> : <p className="text-sm text-muted-foreground">No hay una configuración registrada para modificar.</p>}
@@ -304,6 +308,8 @@ export function SettingsPage() {
                 <ProfileRow label="Zona horaria" value={professionalContext.timezone} mono />
                 {config && (
                   <>
+                    <ProfileRow label="Todos los turnos requieren verificación" value={config.todosLosTurnosPendientesVerificacion ? 'Sí' : 'No'} />
+                    <ProfileRow label="Más de un turno por cliente en un día" value={config.permitirMultiplesTurnosPorClienteEnDia ? 'Permitido' : 'No permitido'} />
                     <ProfileRow label="Duración por turno" value={`${config.duracionAproximadaPorTurno} min`} />
                     <ProfileRow label="Capacidad simultánea" value={`${config.cantidadMaxTurnosALaVez} ${config.cantidadMaxTurnosALaVez === 1 ? 'turno' : 'turnos'}`} />
                     <ProfileRow label="Umbral cancelación" value={config.umbralCancelacionHoras === 0 ? 'Sin límite' : `${config.umbralCancelacionHoras} hs`} />

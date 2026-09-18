@@ -10,6 +10,9 @@ public class ConfiguracionRequestDto {
     @Min(value = 1, message = "La duración aproximada por turno debe ser mayor a 0")
     private Integer duracionAproximadaPorTurno;
 
+    private Boolean todosLosTurnosPendientesVerificacion;
+    private Boolean permitirMultiplesTurnosPorClienteEnDia;
+
     private Boolean agendaSoloManejadaPorProfesional;
 
     @Min(value = 0, message = "El umbral de cancelación en horas no puede ser negativo")
@@ -57,5 +60,9 @@ public class ConfiguracionRequestDto {
     public void setUmbralCancelacionHoras(Integer umbralCancelacionHoras) {
         this.umbralCancelacionHoras = umbralCancelacionHoras;
     }
+    public Boolean getPermitirMultiplesTurnosPorClienteEnDia() { return permitirMultiplesTurnosPorClienteEnDia; }
+    public void setPermitirMultiplesTurnosPorClienteEnDia(Boolean permitir) { this.permitirMultiplesTurnosPorClienteEnDia = permitir; }
+    public Boolean getTodosLosTurnosPendientesVerificacion() { return todosLosTurnosPendientesVerificacion; }
+    public void setTodosLosTurnosPendientesVerificacion(Boolean valor) { this.todosLosTurnosPendientesVerificacion = valor; }
 }
 

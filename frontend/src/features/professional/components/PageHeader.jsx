@@ -9,6 +9,8 @@ import {
 } from '@/components/ui/breadcrumb';
 
 const routeLabels = {
+  '/profesional/turnos-pendientes': 'Turnos pendientes de verificación',
+  '/profesional/clientes': 'Mis clientes',
   '/profesional/mi-dia': 'Mi día',
   '/profesional/mi-semana': 'Cambiar mi semana',
   '/profesional/mi-mes': 'Mi mes',

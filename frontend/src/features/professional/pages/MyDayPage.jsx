@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { es } from 'date-fns/locale';
 import { PageHeader } from '../components/PageHeader';
+import { SelfServiceShortcut } from './SelfServicePage';
 import { DailyTimeline } from '../components/DailyTimeline';
 import { GapEditor } from '../components/GapEditor';
 import {
@@ -256,6 +257,8 @@ export function MyDayPage() {
           </div></div>
         }
       />
+
+      <SelfServiceShortcut />
 
       {daysError && (
         <EmptyState

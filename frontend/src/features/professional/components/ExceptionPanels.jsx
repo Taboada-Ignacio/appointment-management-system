@@ -118,6 +118,10 @@ export function TypeBadge({ tipo, showIcon = true }) {
   );
 }
 
+function canCancelException(item) {
+  return item.activa && item.fechaFin >= new Date().toISOString().slice(0, 10);
+}
+
 function ExceptionStateBadge({ item }) {
   const today = new Date().toISOString().slice(0, 10);
   if (!item.activa) {
@@ -682,7 +686,7 @@ export function ExceptionsPanel({ onRegister }) {
                             >
                               <CalendarDays className="size-4 text-muted-foreground hover:text-foreground" />
                             </Button>
-                            {item.activa && (
+                            {canCancelException(item) && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -758,7 +762,7 @@ export function ExceptionsPanel({ onRegister }) {
                       >
                         <CalendarDays className="size-4" />
                       </Button>
-                      {item.activa && (
+                      {canCancelException(item) && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -909,7 +913,7 @@ export function ExceptionsPanel({ onRegister }) {
                   <CalendarDays className="size-4" />
                   Ver en Mi mes
                 </Button>
-                {visibleException.activa && (
+                {canCancelException(visibleException) && (
                   <Button
                     variant="destructive"
                     className="gap-2"

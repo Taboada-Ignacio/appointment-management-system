@@ -44,4 +44,12 @@ public class TurnoConsultaController {
                 .map(turno -> TurnoResponseDto.from(turno, "ASIGNADO"))
                 .toList());
     }
+
+    @GetMapping("/pendientes-verificacion")
+    public ResponseEntity<org.springframework.data.domain.Page<TurnoResponseDto>> listarPendientes(
+            @PathVariable Long profesionalId,
+            @org.springframework.data.web.PageableDefault(size=20) org.springframework.data.domain.Pageable pageable) {
+        return ResponseEntity.ok(turnoRepository.findPendientesPorProfesional(profesionalId, pageable)
+                .map(turno -> TurnoResponseDto.from(turno, "PENDIENTE_DE_APROBACION")));
+    }
 }

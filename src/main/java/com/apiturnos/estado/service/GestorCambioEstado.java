@@ -27,7 +27,7 @@ public class GestorCambioEstado {
 
     private static final Map<AmbitoEstado, Map<String, Set<String>>> TRANSICIONES = Map.of(
         AmbitoEstado.CLIENTE, Map.of(
-            "PENDIENTE_DE_VERIFICACION", Set.of("HABILITADO", "DADO_DE_BAJA"),
+            "PENDIENTE_DE_VERIFICACION", Set.of("HABILITADO", "REQUIERE_APROBACION", "INHABILITADO", "DADO_DE_BAJA"),
             "HABILITADO", Set.of("REQUIERE_APROBACION", "INHABILITADO", "DADO_DE_BAJA"),
             "REQUIERE_APROBACION", Set.of("HABILITADO", "INHABILITADO", "DADO_DE_BAJA"),
             "INHABILITADO", Set.of("HABILITADO", "REQUIERE_APROBACION", "DADO_DE_BAJA"),

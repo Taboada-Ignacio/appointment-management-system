@@ -43,6 +43,8 @@ springdoc:
     tagsSorter: alpha
 
 turnos:
+  autogestion:
+    clave-enlaces: ${AUTOGESTION_ENLACE_CLAVE:}
   zona-horaria: ${TURNOS_ZONA_HORARIA:America/Argentina/Buenos_Aires}
   confirmacion:
     secreto: ${TURNOS_CONFIRMACION_SECRETO:cambiar-este-secreto-en-produccion-32b}
